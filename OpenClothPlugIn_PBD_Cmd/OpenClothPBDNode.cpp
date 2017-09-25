@@ -65,13 +65,16 @@ glm::vec3 Up = glm::vec3(0, 1, 0), Right, viewDir;
 float startTime = 0;// fps = 0;
 int totalFrames = 0;
 
-glm::mat4 ellipsoid, inverse_ellipsoid;
+int numEllip = 5;
+glm::mat4 ellipsoid[5];
+glm::mat4 inverse_ellipsoid[5]; //20170925
+
 int iStacks = 30;
 int iSlices = 30;
-float fRadius = 1;
+float fRadius =0.5f;
 // Resolve constraint in object space
 glm::vec3 center = glm::vec3(0, 0, 0); //object space center of ellipsoid
-float radius = 1;
+float radius = 0.5f;
 
 MObject OpenClothPBDNode::time;
 MObject OpenClothPBDNode::inputMesh;
@@ -373,13 +376,15 @@ void OpenClothPBDNode::InitializeOpenCloth()
 	//W[total_points - 1] = 0.0; //20170724
 	//W[total_points - numX] = 0.0;//20170724
 
-	for (i = 0; i < numX-1; i++){//20170529 한줄 다 20170911 아래 위 다
+	for (i = 0; i <= numX; i++){//20170529 한줄 다 20170911 아래 위 다 //index 수정 20170921
 		W[i] = 0.0;//맨아래줄
-		W[total_points - i - 1] = 0.0;//맨 윗줄
-		W[i*(numX + 1)] = 0.0; //왼쪽
-		W[i*(numX + 1) - 1] = 0.0;//오른쪽
-	}
+		W[numY*(numX + 1) + i] = 0.0;//맨 윗줄
 
+	}
+	for (int j = 0; j <= numY; j++){
+		W[j*(numX + 1)] = 0.0; //왼쪽
+		W[(j + 1)*(numX + 1) - 1] = 0.0;//오른쪽
+	}
 
 	memcpy(&tmp_X[0].x, &X[0].x, sizeof(glm::vec3)*total_points);
 
@@ -490,13 +495,18 @@ void OpenClothPBDNode::InitializeOpenCloth()
 		phi0[i] = GetDihedralAngle(b_constraints[i], d, n1, n2);
 	}
 #endif
-	/*
+	
 	//create a basic ellipsoid object
-	ellipsoid = glm::translate(glm::mat4(1), glm::vec3(-1, -2, 0));
-	ellipsoid = glm::rotate(ellipsoid, 45.0f, glm::vec3(1, 0, 0));
-	ellipsoid = glm::scale(ellipsoid, glm::vec3(fRadius, fRadius, fRadius / 2));
-	inverse_ellipsoid = glm::inverse(ellipsoid);
-	*/
+	for (int i = 0; i <numEllip; i++){
+		ellipsoid[i] = glm::translate(glm::mat4(1), glm::vec3(-1, i-2, 0));
+		inverse_ellipsoid[i] = glm::inverse(ellipsoid[i]);
+	}
+	//ellipsoid = glm::translate(glm::mat4(1), glm::vec3(-1, 0, 0));
+	//ellipsoid = glm::rotate(ellipsoid, 45.0f, glm::vec3(1, 0, 0));
+	//ellipsoid = glm::scale(ellipsoid, glm::vec3(fRadius, fRadius, fRadius / 2));
+	//inverse_ellipsoid = glm::inverse(ellipsoid);
+	
+	
 
 }
 void OpenClothPBDNode::StepPhysics(float dt){
@@ -523,7 +533,7 @@ void OpenClothPBDNode::ComputeForces() {
 		//F[total_points / 2] += nabi;
 	}
 
-	F[total_points / 2] += glm::vec3(100, 0, 0);//20170911 10의 힘을 z 방향으로 준다
+	//F[total_points / 2] += glm::vec3(100, 0, 0);//20170911 10의 힘을 z 방향으로 준다
 	//F[total_points / 4] += glm::vec3(100, 0, 0);//20170911 10의 힘을 z 방향으로 준다
 	//F[total_points-(total_points/ 4)] += glm::vec3(0, 0, 100.0);//20170911 10의 힘을 z 방향으로 준다
 }
@@ -774,33 +784,80 @@ void OpenClothPBDNode::GroundCollision() //DevO: 24.07.2011
 	}
 }
 void OpenClothPBDNode::EllipsoidCollision() {
+
+	for (int j = 0; j < numEllip; j++){
 	for (size_t i = 0; i<total_points; i++) {
-		glm::vec4 X_0 = (inverse_ellipsoid*glm::vec4(tmp_X[i], 1));
+		glm::vec4 X_0 = (inverse_ellipsoid[j]*glm::vec4(tmp_X[i], 1));
 		glm::vec3 delta0 = glm::vec3(X_0.x, X_0.y, X_0.z) - center;
 		float distance = glm::length(delta0);
-		if (distance < 1.0f) {
+		if (distance <0.5f) {
 			delta0 = (radius - distance) * delta0 / distance;
 
 			// Transform the delta back to original space
 			glm::vec3 delta;
 			glm::vec3 transformInv;
-			transformInv = glm::vec3(ellipsoid[0].x, ellipsoid[1].x, ellipsoid[2].x);
+			transformInv = glm::vec3(ellipsoid[j][0].x, ellipsoid[j][1].x, ellipsoid[j][2].x);
 			transformInv /= glm::dot(transformInv, transformInv);
 			delta.x = glm::dot(delta0, transformInv);
-			transformInv = glm::vec3(ellipsoid[0].y, ellipsoid[1].y, ellipsoid[2].y);
+			transformInv = glm::vec3(ellipsoid[j][0].y, ellipsoid[j][1].y, ellipsoid[j][2].y);
 			transformInv /= glm::dot(transformInv, transformInv);
 			delta.y = glm::dot(delta0, transformInv);
-			transformInv = glm::vec3(ellipsoid[0].z, ellipsoid[1].z, ellipsoid[2].z);
+			transformInv = glm::vec3(ellipsoid[j][0].z, ellipsoid[j][1].z, ellipsoid[j][2].z);
 			transformInv /= glm::dot(transformInv, transformInv);
 			delta.z = glm::dot(delta0, transformInv);
 			tmp_X[i] += delta;
 			V[i] = glm::vec3(0);
 		}
 	}
+	}
 }
 
+void OpenClothPBDNode::EllipsoidMove(float limit){
+	/* 20170921 */
+	
+	//printf("ellipsoid[0]: %f\n", ellipsoid[3].x);
+	for (int j = 0; j < numEllip; j++){
+		if (ellipsoid[j][3].x >= limit){
+			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(limit, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))
+			//ellipsoid = glm::rotate(ellipsoid, 45.0f, glm::vec3(1, 0, 0));
+			//ellipsoid = glm::scale(ellipsoid, glm::vec3(fRadius, fRadius/2, fRadius / 2));
+			inverse_ellipsoid[j] = glm::inverse(ellipsoid[j]);
+		}
+		else{
+
+			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(ellipsoid[j][3].x + 0.01, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))//20170921(-1+0.01*i)에서 ellipsoid[3].x + 0.01로 수정. i static이라 초기화 문제 때문. 
+			//ellipsoid = glm::rotate(ellipsoid, 45.0f, glm::vec3(1, 0, 0));
+			//ellipsoid = glm::scale(ellipsoid, glm::vec3(fRadius, fRadius/2, fRadius / 2));
+			inverse_ellipsoid[j] = glm::inverse(ellipsoid[j]);
+		}
+	}
+	
+
+}
+void OpenClothPBDNode::UpdatePositionConstraint(float limit){
+	bool check = false;
+	int numPoints = 5;
+	int points[5] = { total_points / 2,
+		total_points / 2 - 1* (numX +1),
+		total_points / 2 + 1 * (numX +1),
+		total_points / 2 - 1,
+		total_points / 2 + 1 };
+
+	for (int i = 0; i < numPoints; i++){
+		if (tmp_X[points[i]].x >= limit){
+			tmp_X[points[i]].x = limit;
+			W[points[i]] = 0.0;
+		}
+		else{
+			tmp_X[points[i]].x += 0.01;
+			W[points[i]] = 0.0;
+		}
+
+	}
+}
 void OpenClothPBDNode::UpdateExternalConstraints() {
-	//EllipsoidCollision();
+	EllipsoidMove(4.0);
+	EllipsoidCollision();
 }
 //----------------------------------------------------------------------------------------------------
 void OpenClothPBDNode::UpdateInternalConstraints(float deltaTime) {
@@ -814,10 +871,7 @@ void OpenClothPBDNode::UpdateInternalConstraints(float deltaTime) {
 		for (i = 0; i<b_constraints.size(); i++) {
 			UpdateBendingConstraint(i);
 		}
-		if (tmp_X[total_points / 2].x > 3.0){
-			tmp_X[total_points / 2].x = 3.0;
-			W[total_points / 2] = 0.0;
-		}
+		//UpdatePositionConstraint(4.0);
 		//GroundCollision();
 	}
 }

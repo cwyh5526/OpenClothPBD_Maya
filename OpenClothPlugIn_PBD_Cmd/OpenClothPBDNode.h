@@ -89,9 +89,11 @@ protected:
 	void UpdateInternalConstraints(float deltaTime);
 	void UpdateDistanceConstraint(int i);
 	void UpdateBendingConstraint(int index);
+	void UpdatePositionConstraint(float limit);//20170925
 
 	void GroundCollision();
 	void EllipsoidCollision();
+	void EllipsoidMove(float limit);
 
 	void UpdateExternalConstraints();
 	void Integrate(float deltaTime);
