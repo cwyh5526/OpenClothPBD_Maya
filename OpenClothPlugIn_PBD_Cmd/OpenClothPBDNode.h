@@ -2,6 +2,7 @@
 #define OPENCLOTHPBDNODE_H
 
 #include <vector>
+#include <algorithm>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp> //for matrices
@@ -13,6 +14,7 @@
 #include <maya/MPoint.h>
 #include <maya/MFloatPoint.h>
 #include <maya/MFloatPointArray.h>
+#include <maya/MFloatArray.h>
 #include <maya/MIntArray.h>
 #include <maya/MDoubleArray.h>
 
@@ -33,9 +35,12 @@
 #include <maya/MGlobal.h>
 #include <maya/MAnimControl.h>
 
+#include <maya/MColor.h>
+#include <maya/MItMeshPolygon.h>
+
 /*
-string $pPlane1[] = `polyPlane -w 10 -h 10 -sx 100 -sy 100 -ax 1 0 0 -cuv 2 -ch 1`;
-string $pPlane2[] = `polyPlane -w 10 -h 10 -sx 100 -sy 100 -ax 1 0 0 -cuv 2 -ch 1`;
+string $pPlane1[] = `polyPlane -w 10 -h 10 -sx 200 -sy 200 -ax 1 0 0 -cuv 2 -ch 1`;
+string $pPlane2[] = `polyPlane -w 10 -h 10 -sx 200 -sy 200 -ax 1 0 0 -cuv 2 -ch 1`;
 select -r polyPlane2 ;
 doDelete;
 
@@ -74,6 +79,8 @@ public:
 	static MObject subHeight;
 	static MObject subWidth;
 
+	//strain configuration
+	static MObject MStrain;
 
 	/*node type*/
 	static MTypeId	id; //unique identifier used by create() to identify which node to create
@@ -97,11 +104,12 @@ protected:
 
 	void UpdateExternalConstraints();
 	void Integrate(float deltaTime);
+	
+	void CalStrain();
 
 	void InitializeOpenCloth();
 private:
 	static MFloatPointArray iarr;
-
 
 };
 

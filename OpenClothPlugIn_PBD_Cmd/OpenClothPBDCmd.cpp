@@ -14,6 +14,7 @@
 
 MStatus OpenClothPBDCmd::doIt(const MArgList &args)
 {
+	//MGlobal::displayInfo("######OpenClothPBDCmd doIt()");
 	MStatus stat;
 
 	// Get a list of currently selected objects
