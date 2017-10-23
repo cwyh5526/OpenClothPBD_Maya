@@ -1,9 +1,9 @@
 #include "OpenClothPBDNode.h"
-#include <string>
 
 #define USE_TRIANGLE_BENDING_CONSTRAINT
 #define PI 3.1415926536f
 #define EPSILON  0.0000001f
+
 
 struct DistanceConstraint { int p1, p2;	float rest_length, k; float k_prime; };
 #ifdef USE_TRIANGLE_BENDING_CONSTRAINT
@@ -20,7 +20,7 @@ float hsize = size / 2.0f;
 
 double fps = 0;
 int countfps = 0;
-float timeStep = 1.0f / 120.0f; //1.0/60.0f;
+float timeStep = 1.0f / 600.0f; //1.0/60.0f;
 //float currentTime = 0;
 double currentTime = 0;
 double accumulator = timeStep;
@@ -35,9 +35,6 @@ std::vector<BendingConstraint> b_constraints;
 //particle system
 std::vector<glm::vec3> X; //position
 std::vector<glm::vec3> tmp_X; //predicted position
-//position constraint
-int points[400];
-int collisionGridSize;
 std::vector<glm::vec3> V; //velocity
 std::vector<glm::vec3> F;
 std::vector<float> W; //inverse particle mass 
@@ -45,7 +42,7 @@ std::vector<glm::vec3> Ri; //Ri = Xi-Xcm
 
 //strain configuration
 std::vector<float> Strain; //max deformation length 171011
-std::vector<glm::vec3> final_X; //final position 171011
+
 float init_X;
 
 int oldX = 0, oldY = 0;
@@ -61,11 +58,6 @@ float kStretch = 1.f;//0.25f
 float kDamp = 0.00125f;
 glm::vec3 gravity = glm::vec3(0.0f, -0.00981f, 0.0f);
 glm::vec3 nabi = glm::vec3(0.01f, 0.0f, 0.0f);//20170724
-
-//171012
-int straincal = 0;
-int colorcal = 0;
-bool coloring = false;
 
 float mass = 1.f / 300;//50.f / (total_points);//1.f/totalpoints
 
@@ -83,10 +75,34 @@ glm::mat4 inverse_ellipsoid[400];// 1]; //20170925
 
 int iStacks = 30;
 int iSlices = 30;
-float fRadius =0.3f;
+float fRadius =0.5f;
 // Resolve constraint in object space
 glm::vec3 center = glm::vec3(0, 0, 0); //object space center of ellipsoid
-float radius = 0.3f;
+float radius = 0.5f;
+float heightArray[400] = //  1    2    3    4     5     6     7     8     9      10   11   12     13   14    15    16     17    18    19   20
+{
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0,  0.0,  0.0, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0,  0.0,  0.0, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0,  0.0,  0.0, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+	0.0, 0.0, 0.0, 0.0, 1.5, 1.6,  1.6,  1.6,  1.6, 1.6,  1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 0.0, 0.0, 0.0, 0.0,
+	0.0, 0.0, 0.0, 1.6, 1.8, 2.7,  3.0,  3.0,  3.1, 3.2,  3.1, 3.0, 2.9, 2.6, 2.4, 2.3, 1.6, 0.0, 0.0, 0.0,
+	0.0, 0.0, 1.6, 2.0, 2.8, 3.4, 3.6, 4.0, 4.1, 4.0, 3.7, 3.6, 3.5, 3.4, 3.2, 3.1, 3.0, 1.6, 0.0, 0.0,
+	0.0, 0.5, 1.6, 2.4, 3.3, 3.6, 3.9, 4.4, 4.2, 3.2, 3.2, 3.8, 3.7, 3.6, 3.6, 3.5, 3.3, 3.2, 1.6, 0.0,
+	0.0, 0.5, 1.7, 2.8, 3.4, 3.7, 4.0, 4.6, 4.5, 3.2, 3.9, 4.0, 5.5, 4.3, 4.3, 4.2, 3.8, 3.8, 2.4, 0.0,
+
+	0.0, 0.5, 1.7, 3.0, 3.5, 3.8,  4.2,  4.7,  4.8, 4.6, 4.8, 5.4, 6.0, 4.4, 4.3, 4.2, 4.0, 3.8, 2.5, 0.0,
+	0.0, 0.5, 1.7, 3.0, 3.5, 3.8,  4.2,  4.7,  4.8, 4.6, 4.8, 5.4, 6.0, 4.4, 4.3, 4.2, 4.0, 3.8, 2.5, 0.0,
+
+	0.0, 0.5, 1.7, 2.8, 3.4, 3.7, 4.0, 4.6, 4.5, 3.2, 3.9, 4.0, 5.5, 4.3, 4.3, 4.2, 3.8, 3.8, 2.4, 0.0,
+	0.0, 0.5, 1.6, 2.4, 3.3, 3.6, 3.9, 4.4, 4.2, 3.2, 3.2, 3.8, 3.7, 3.6, 3.6, 3.5, 3.3, 3.2, 1.6, 0.0,
+	0.0, 0.0, 1.6, 2.0, 2.8, 3.4, 3.6, 4.0, 4.1, 4.0, 3.7, 3.6, 3.5, 3.4, 3.2, 3.1, 3.0, 1.6, 0.0, 0.0,
+	0.0, 0.0, 0.0, 1.6, 1.8, 2.7,  3.0,  3.0,  3.1, 3.2,  3.1, 3.0, 2.9, 2.6, 2.4, 2.3, 1.6, 0.0, 0.0, 0.0,
+	0.0, 0.0, 0.0, 0.0, 1.5, 1.6,  1.6,  1.6,  1.6, 1.6,  1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 0.0, 0.0, 0.0, 0.0,
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0,  0.0,  0.0, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0,  0.0,  0.0, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0,  0.0,  0.0, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }; 
 
 MObject OpenClothPBDNode::time;
 MObject OpenClothPBDNode::inputMesh;
@@ -135,10 +151,7 @@ MStatus OpenClothPBDNode::initialize()
 	outputMesh = typedAttr.create("outputMesh", "out", MFnData::kMesh, &stat);
 	if (!stat)
 		return stat;
-
-	if (!stat)
-		return stat;
-
+		
 	typedAttr.setStorable(false);
 
 	//2017.07.19
@@ -155,6 +168,7 @@ MStatus OpenClothPBDNode::initialize()
 	addAttribute(height);//2017.07.19
 	addAttribute(subWidth);//2017.07.19
 	addAttribute(subHeight);//2017.07.19
+
 
 	attributeAffects(inputMesh, outputMesh);
 	attributeAffects(time, outputMesh);
@@ -173,7 +187,7 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 	MStatus returnStatus;
 	if (plug == outputMesh)
 	{
-		MGlobal::displayInfo("######OpenClothPBDNode compute()");
+		//MGlobal::displayInfo("######OpenClothPBDNode compute()");
 		/* Get time */
 		MDataHandle timeData = data.inputValue(time, &returnStatus);
 		McheckErr(returnStatus, "Error getting time data handle\n");
@@ -247,24 +261,19 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 
 MObject OpenClothPBDNode::createCloth(const MTime& time, MObject& inData, MObject& outData, MStatus& stat)
 {
-	MGlobal::displayInfo("######OpenClothPBDNode create()");
 	MFnMesh meshFn;
 	meshFn.copy(inData, outData);
 	meshFn.setObject(outData);
 
 	returnStatus = meshFn.getPoints(iarr, MSpace::kObject);
-	if (returnStatus != MS::kSuccess){
+	if (returnStatus != MS::kSuccess)
+	{
 		cerr << "Error in getting Vertices:" << returnStatus << endl;
 		return MObject::kNullObj;
 	}
 
-	//meshFn.assignColors(colorIds, NULL);
-	//meshFn.setDisplayColors(true);
-	
 	MColorArray colors;
 	MIntArray vertexId;
-	//MIntArray colorIds;
-	MItMeshPolygon polyit(inData);
 
 	static bool first = true; //20170721
 	if (time.value() == 1){
@@ -275,78 +284,52 @@ MObject OpenClothPBDNode::createCloth(const MTime& time, MObject& inData, MObjec
 		first = true;
 	}
 	if (first){
+		
 		InitializeOpenCloth();
 
 		colors.clear();
 		vertexId.clear();
-
-		for (int i=0; i<400; i++)
+		colors.setLength(total_points);
+		vertexId.setLength(total_points);
+		
+		//for (int i=0; i<400; i++)
+		for (int i=0; i<total_points; i++)
 		{
-			//unsigned int polyIndex = polyit.index();
-
-			//int colorId;
-			//meshFn.getColorIndex(polyIndex, iterCounter, colorId, NULL);
-
-			colors.append(Strain[i], 0, 0, 1);
-			vertexId.append(points[i]);
-
-			//MString str = " ";
-			//MGlobal::displayInfo(str+Strain[polyIndex]);
-
-			//iterCounter++;
+			colors.set(i, 0, 0, 0, 1);
+			//colors.append(Strain[i], 0, 0, 1);
+			vertexId.set(i,i);//point[i]가 일단 정의가 안 되어있는 상황이었음.
 		}
 
-		meshFn.setVertexColors(colors, vertexId);
+		//meshFn.setVertexColors(colors, vertexId);
 
 		first = false;
 	}
 	else {
 		StepPhysics(timeStep);
-
-		//MGlobal::displayInfo("######OpenClothPBDNode coloring()");
-		for (polyit.reset(); !polyit.isDone(); polyit.next())
+		colors.clear();
+		vertexId.clear();
+		colors.setLength(total_points);
+		vertexId.setLength(total_points);
+		//for (polyit.reset(); !polyit.isDone(); polyit.next())
+		for (int i = 0; i < total_points;i++)
 		//for(int i=0; i<400; i++)
 		{
-			unsigned int polyIndex = polyit.index();
-
-			//int colorId;
-			//meshFn.getColorIndex(polyIndex, iterCounter, colorId, NULL);
-			MString str = "strain : ";
-			//MGlobal::displayInfo(str+Strain[i]);
-			//if (Strain[i] >= 0.8)
 			
-			float s = std::min(std::max(Strain[polyIndex], 0.f), 1.f);
-			
-			
+			//unsigned int polyIndex = polyit.index();
+			float s = std::min(std::max(Strain[i], 0.f), 1.f);
+			//float s = std::min(std::max(Strain[polyIndex], 0.f), 1.f);
 			float r = std::max(-(s - 1)*(s - 1) + 1, 0.f);
 			float g = -4 * (s - 0.5)*(s - 0.5) + 1;
 			float b = -s*s + 1;
-			
-			/*
-			float r = std::min(std::max(-3 * (s - 1)*(s - 1) + 1, 0.f), 1.f);
-			float g = -4 * (s - 0.5)*(s - 0.5) + 1;
-			float b = std::min(-3*s*s + 1, 1.f);
-			*/
-
-			colors.append(r, g, b, 1);
-			//colors.append(std::min(std::max(Strain[polyIndex], 0.f), 1.f), 1- std::min(std::max(Strain[polyIndex], 0.f), 1.f), 0, 1);
-			//else if (Strain[i] < 0.8 && Strain[i] >= 0.45)
-			//	colors.append(0, 1, 0, 1);
-			//else if(Strain[i] == 0)
-			//	colors.append(0, 0, 0, 1);
-			//else
-			//	colors.append(0, 0, 1, 1);
-			vertexId.append(polyIndex);
-
-			//MString str = " ";
-			//MGlobal::displayInfo(str+Strain[polyIndex]);
-
-			//iterCounter++;
+			colors.set(i, r, g, b, 1);
+			vertexId.set(i, i);
+			//colors.append(r, g, b, 1);
+			//vertexId.append(i);
 		}
 
-		meshFn.setVertexColors(colors, vertexId);
+		//meshFn.setVertexColors(colors, vertexId);
 	}
-
+	meshFn.setVertexColors(colors, vertexId);
 	meshFn.setPoints(iarr);
 
 	return outData;
@@ -422,8 +405,6 @@ void OpenClothPBDNode::InitializeOpenCloth()
 {
 	//Initialize variable and Cosntraints
 	MGlobal::displayInfo("######OpenClothPBDNode InitializeOpenCloth()");
-	straincal = 0;
-	coloring = false;
 
 	size_t i = 0, j = 0, count = 0;
 	int l1 = 0, l2 = 0;
@@ -437,8 +418,9 @@ void OpenClothPBDNode::InitializeOpenCloth()
 
 	X.resize(total_points);
 	tmp_X.resize(total_points);
+
 	Strain.resize(total_points);
-	final_X.resize(total_points);
+
 	V.resize(total_points);
 	F.resize(total_points);
 	Ri.resize(total_points);
@@ -594,7 +576,8 @@ void OpenClothPBDNode::InitializeOpenCloth()
 /*400 */
 	for (int j = 0; j < 20; j++){
 		for (int i = 0; i <20; i++){
-			ellipsoid[i+20*j] = glm::translate(glm::mat4(1), glm::vec3(0-radius, (float)i/2 - 4.7, -4.7+(float)j/2));
+			ellipsoid[i+20*j] = glm::translate(glm::mat4(1), glm::vec3(0-radius, (float)i/2 - 4.7, 4.7-(float)j/2));
+			//ellipsoid[i + 20 * j] = glm::scale(ellipsoid[i + 20 * j], glm::vec3(fRadius, fRadius*1.5, fRadius*1.5));
 			inverse_ellipsoid[i + 20 * j] = glm::inverse(ellipsoid[i + 20 * j]);
 		}
 	}
@@ -619,7 +602,7 @@ void OpenClothPBDNode::InitializeOpenCloth()
 }
 void OpenClothPBDNode::StepPhysics(float dt){
 
-	MGlobal::displayInfo("######OpenClothPBDNode StepPhy()");
+	//MGlobal::displayInfo("######OpenClothPBDNode StepPhy()");
 	ComputeForces();
 	IntegrateExplicitWithDamping(dt);
 
@@ -897,11 +880,56 @@ void OpenClothPBDNode::GroundCollision() //DevO: 24.07.2011
 void OpenClothPBDNode::EllipsoidCollision() {
 
 	int collisionGridSize = numX / (int)sqrt(numEllip);
+	int ellipsoidIndex;
+	int numCollisionGrid = (int)(radius / init_X);//2017116
 
+	for (int eY = 0; eY < (int)sqrt(numEllip); eY++){
+		for (int eX = 0; eX < (int)sqrt(numEllip); eX++){
+			ellipsoidIndex = eX + eY*(int)sqrt(numEllip);
+			int eCenterX = (int)(collisionGridSize / 2) + collisionGridSize*eX;
+			int eCenterY = (int)(collisionGridSize / 2) + collisionGridSize*eY;
+			for (int y = std::max(0, eCenterY - numCollisionGrid); y < std::min(eCenterY + numCollisionGrid, numY); y++)
+			{
+				for (int x = std::max(0, eCenterX - numCollisionGrid); x < std::min(eCenterX + numCollisionGrid, numX); x++)
+				{
+					int index = getIndex(y, x);
+					
+					glm::vec4 X_0 = (inverse_ellipsoid[ellipsoidIndex] * glm::vec4(tmp_X[index], 1));
+					glm::vec3 delta0 = glm::vec3(X_0.x, X_0.y, X_0.z) - center;
+					float distance = glm::length(delta0);
+					if (distance < radius) {
+						delta0 = (radius - distance) * delta0 / distance;
+
+						// Transform the delta back to original space
+						glm::vec3 delta;
+						glm::vec3 transformInv;
+						transformInv = glm::vec3(ellipsoid[ellipsoidIndex][0].x, ellipsoid[ellipsoidIndex][1].x, ellipsoid[ellipsoidIndex][2].x);
+						transformInv /= glm::dot(transformInv, transformInv);
+						delta.x = glm::dot(delta0, transformInv);
+						transformInv = glm::vec3(ellipsoid[ellipsoidIndex][0].y, ellipsoid[ellipsoidIndex][1].y, ellipsoid[ellipsoidIndex][2].y);
+						transformInv /= glm::dot(transformInv, transformInv);
+						delta.y = glm::dot(delta0, transformInv);
+						transformInv = glm::vec3(ellipsoid[ellipsoidIndex][0].z, ellipsoid[ellipsoidIndex][1].z, ellipsoid[ellipsoidIndex][2].z);
+						transformInv /= glm::dot(transformInv, transformInv);
+						delta.z = glm::dot(delta0, transformInv);
+						tmp_X[index] += delta;
+						V[index] = glm::vec3(0);
+					}
+				}
+			}
+			
+		}
+	}
+		/*
 	for (int i = 0; i < numX; i++) {
 		for (int k = 0; k < numY; k++) {
 			int index = getIndex(i, k);
-			int ellipsoidIndex = ((int)(i / collisionGridSize)) * (int)sqrt(numEllip) + ((int)(k / collisionGridSize));
+			if (i == 0 || k == 0){
+				ellipsoidIndex = ((int)(i / collisionGridSize)) * (int)sqrt(numEllip) + ((int)(k / collisionGridSize));
+			}
+			else{
+				ellipsoidIndex = ((int)(i / collisionGridSize)) * (int)sqrt(numEllip) + ((int)(k / collisionGridSize));
+			}
 
 			glm::vec4 X_0 = (inverse_ellipsoid[ellipsoidIndex] * glm::vec4(tmp_X[index], 1));
 			glm::vec3 delta0 = glm::vec3(X_0.x, X_0.y, X_0.z) - center;
@@ -923,56 +951,36 @@ void OpenClothPBDNode::EllipsoidCollision() {
 				delta.z = glm::dot(delta0, transformInv);
 				tmp_X[index] += delta;
 				V[index] = glm::vec3(0);
-
+				200
 			}
 		}
-	}
+	}*/
 
 }
 
 void OpenClothPBDNode::EllipsoidMove(float limit){
 	/* 20170921 */
-	int height[400] = //  1    2    3    4     5     6     7     8     9      10   11   12     13   14    15    16     17    18    19   20
-	{
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.8, 0.8, 0.7, 0.6, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 1.5, 2.4, 2.5, 2.5, 2.6, 2.7, 2.6, 2.5, 2.4, 2.1, 1.7, 1.6, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 2.1, 2.8, 3.1, 3.5, 3.6, 3.7, 3.8, 3.5, 3.4, 3.2, 3.0, 2.8, 2.7, 2.5, 0.0, 0.0, 0.0,
-		0.0, 0.0, 1.5, 2.4, 3.0, 3.4, 3.6, 4.0, 4.1, 4.0, 3.7, 3.6, 3.5, 3.4, 3.2, 3.1, 3.0, 2.5, 0.0, 0.0,
-		0.0, 0.0, 1.6, 2.6, 3.3, 3.7, 3.9, 4.4, 4.2, 3.2, 3.2, 3.8, 3.7, 3.6, 3.6, 3.5, 3.3, 3.2, 2.6, 0.0,
-		0.0, 0.3, 1.7, 2.8, 3.4, 3.8, 4.0, 4.6, 4.5, 3.2, 3.9, 4.0, 5.5, 4.3, 4.3, 4.2, 3.8, 4.0, 2.8, 0.0,
 
-		0.0, 0.5, 1.7, 3.0, 3.5, 3.95, 4.25, 4.75, 4.8, 4.65, 4.8, 5.5, 6.0, 4.4, 4.3, 4.2, 4.0, 4.1, 3.0, 0.0,
-		0.0, 0.5, 1.7, 3.0, 3.5, 3.95, 4.25, 4.75, 4.8, 4.65, 4.8, 5.5, 6.0, 4.4, 4.3, 4.2, 4.0, 4.1, 3.0, 0.0,
-
-		0.0, 0.3, 1.7, 2.8, 3.4, 3.8, 4.0, 4.6, 4.5, 3.2, 3.9, 4.0, 5.5, 4.3, 4.3, 4.2, 3.8, 4.0, 2.8, 0.0,
-		0.0, 0.0, 1.6, 2.6, 3.3, 3.7, 3.9, 4.4, 4.2, 3.2, 3.2, 3.8, 3.7, 3.6, 3.6, 3.5, 3.3, 3.2, 2.6, 0.0,
-		0.0, 0.0, 1.5, 2.4, 3.0, 3.4, 3.6, 4.0, 4.1, 4.0, 3.7, 3.6, 3.5, 3.4, 3.2, 3.1, 3.0, 2.5, 0.0, 0.0,
-		0.0, 0.0, 0.0, 2.1, 2.8, 3.1, 3.5, 3.6, 3.7, 3.8, 3.5, 3.4, 3.2, 3.0, 2.8, 2.7, 2.5, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 1.5, 2.4, 2.5, 2.5, 2.6, 2.7, 2.6, 2.5, 2.4, 2.1, 1.7, 1.6, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.8, 0.8, 0.7, 0.6, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 	//printf("ellipsoid[0]: %f\n", ellipsoid[3].x);
 	for (int j = 0; j < numEllip; j++){
 
-		if (ellipsoid[j][3].x >= height[numEllip - j - 1] / 2 - radius) {//limit
-			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(height[numEllip - j - 1] / 2 - radius, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))
+		if (ellipsoid[j][3].x >= heightArray[numEllip - j - 1] / 2 - radius) {//limit
+			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(heightArray[numEllip - j - 1] / 2 - radius, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))
 			//ellipsoid = glm::rotate(ellipsoid, 45.0f, glm::vec3(1, 0, 0));
-			//ellipsoid = glm::scale(ellipsoid, glm::vec3(fRadius, fRadius/2, fRadius / 2));
+			//ellipsoid[j] = glm::scale(ellipsoid[j], glm::vec3(fRadius, fRadius*1.5, fRadius*1.5));
 			inverse_ellipsoid[j] = glm::inverse(ellipsoid[j]);
 			
 		}
 		else{
 
-			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(ellipsoid[j][3].x + 0.01, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))//20170921(-1+0.01*i)에서 ellipsoid[3].x + 0.01로 수정. i static이라 초기화 문제 때문. 
+			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(ellipsoid[j][3].x + (heightArray[numEllip - j - 1] / 2 - radius)/100, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))//20170921(-1+0.01*i)에서 ellipsoid[3].x + 0.01로 수정. i static이라 초기화 문제 때문. 
 			//ellipsoid = glm::rotate(ellipsoid, 45.0f, glm::vec3(1, 0, 0));
-			//ellipsoid = glm::scale(ellipsoid, glm::vec3(fRadius, fRadius/2, fRadius / 2));
+			//ellipsoid[j] = glm::scale(ellipsoid[j], glm::vec3(fRadius, fRadius*1.5, fRadius*1.5));
 			inverse_ellipsoid[j] = glm::inverse(ellipsoid[j]);
 		}
+		
+		
+		
 	}
 	
 
@@ -980,37 +988,10 @@ void OpenClothPBDNode::EllipsoidMove(float limit){
 void OpenClothPBDNode::UpdatePositionConstraint(float limit) {
 	bool check = false;
 	int numPoints = 400;//105;
-	int point1 = getIndex(numX / 4, numY / 4);
-	int point2 = getIndex(numX / 4, 3 * numY / 4);
-	int point3 = getIndex(3 * numX / 4, numY / 4);
-	int point4 = getIndex(3 * numX / 4, 3 * numY / 4);
-	int pointCenter = getIndex(numX / 2, numY / 2);
-	points[400];
-	int height[400] = //  1    2    3    4     5     6     7     8     9      10   11   12     13   14    15    16     17    18    19   20
-	{
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.8, 0.8, 0.7, 0.6, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 1.5, 2.4, 2.5, 2.5, 2.6, 2.7, 2.6, 2.5, 2.4, 2.1, 1.7, 1.6, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 2.1, 2.8, 3.1, 3.5, 3.6, 3.7, 3.8, 3.5, 3.4, 3.2, 3.0, 2.8, 2.7, 2.5, 0.0, 0.0, 0.0,
-		0.0, 0.0, 1.5, 2.4, 3.0, 3.4, 3.6, 4.0, 4.1, 4.0, 3.7, 3.6, 3.5, 3.4, 3.2, 3.1, 3.0, 2.5, 0.0, 0.0,
-		0.0, 0.0, 1.6, 2.6, 3.3, 3.7, 3.9, 4.4, 4.2, 3.2, 3.2, 3.8, 3.7, 3.6, 3.6, 3.5, 3.3, 3.2, 2.6, 0.0,
-		0.0, 0.3, 1.7, 2.8, 3.4, 3.8, 4.0, 4.6, 4.5, 3.2, 3.9, 4.0, 5.5, 4.3, 4.3, 4.2, 3.8, 4.0, 2.8, 0.0,
 
-		0.0, 0.5, 1.7, 3.0, 3.5, 3.95, 4.25, 4.75, 4.8, 4.65, 4.8, 5.5, 6.0, 4.4, 4.3, 4.2, 4.0, 4.1, 3.0, 0.0,
-		0.0, 0.5, 1.7, 3.0, 3.5, 3.95, 4.25, 4.75, 4.8, 4.65, 4.8, 5.5, 6.0, 4.4, 4.3, 4.2, 4.0, 4.1, 3.0, 0.0,
+	int points[400];
 
-		0.0, 0.3, 1.7, 2.8, 3.4, 3.8, 4.0, 4.6, 4.5, 3.2, 3.9, 4.0, 5.5, 4.3, 4.3, 4.2, 3.8, 4.0, 2.8, 0.0,
-		0.0, 0.0, 1.6, 2.6, 3.3, 3.7, 3.9, 4.4, 4.2, 3.2, 3.2, 3.8, 3.7, 3.6, 3.6, 3.5, 3.3, 3.2, 2.6, 0.0,
-		0.0, 0.0, 1.5, 2.4, 3.0, 3.4, 3.6, 4.0, 4.1, 4.0, 3.7, 3.6, 3.5, 3.4, 3.2, 3.1, 3.0, 2.5, 0.0, 0.0,
-		0.0, 0.0, 0.0, 2.1, 2.8, 3.1, 3.5, 3.6, 3.7, 3.8, 3.5, 3.4, 3.2, 3.0, 2.8, 2.7, 2.5, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 1.5, 2.4, 2.5, 2.5, 2.6, 2.7, 2.6, 2.5, 2.4, 2.1, 1.7, 1.6, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8, 0.8, 0.8, 0.7, 0.6, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-		0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-	collisionGridSize = numX / (int)sqrt(numEllip);
+	int collisionGridSize = (int)(std::min(numX,numY) / (int)sqrt(numEllip));
 	for (int i = 0; i < 20; i++) {
 		for (int j = 0; j < 20; j++) {
 			points[i * 20 + j] = getIndex((int)(collisionGridSize /2)+ collisionGridSize * i, (int)(collisionGridSize/2) + collisionGridSize * j);
@@ -1019,15 +1000,16 @@ void OpenClothPBDNode::UpdatePositionConstraint(float limit) {
 
 	for (int i = 0; i < numPoints; i++) {
 
-		if (tmp_X[points[i]].x >= height[numPoints - i - 1] / 2.0) {
-			tmp_X[points[i]].x = height[numPoints - i - 1] / 2.0;
+		if (tmp_X[points[i]].x >= heightArray[numPoints - i - 1] / 2.0) {
+			tmp_X[points[i]].x = heightArray[numPoints - i - 1] / 2.0;
 			W[points[i]] = 0.0;
 		}
 		else {
-			tmp_X[points[i]].x += 0.01;
+			tmp_X[points[i]].x += (heightArray[numPoints - i - 1] / 2.0) / 100;
 			W[points[i]] = 0.0;
 		}
-
+		
+		
 	}
 }
 void OpenClothPBDNode::UpdateExternalConstraints() {
@@ -1060,71 +1042,20 @@ void OpenClothPBDNode::CalStrain()
 	//MGlobal::displayInfo("calStr");
 
 	int point = 0;
-
-	for (int i = 0; i < 20; i++)
-	{
-		for (int j = 0; j < 20; j++)
-		{
-			point = j + 20 * i;
-			if ((i != 0) && (i != 19) && (j != 0) && (j != 19))
-			{
-				float len1 = 0, len2 = 0, len3 = 0, len4 = 0;
-				for (int sublen = 0; sublen < collisionGridSize; sublen++)
-				{
-					len1 += distance(tmp_X[points[i * 20 + j] - collisionGridSize + sublen], tmp_X[points[i * 20 + j] - collisionGridSize + sublen + 1]);
-					//MGlobal::displayInfo(MString() + tmp_X[points[i * 20 + j] - collisionGridSize + sublen].x + ", " + tmp_X[points[i * 20 + j] - collisionGridSize + sublen].y + ", " + tmp_X[points[i * 20 + j] - collisionGridSize + sublen].z);
-				}
-				for (int sublen = 0; sublen > -collisionGridSize; sublen--)
-				{
-					len2 += distance(tmp_X[points[i * 20 + j] + collisionGridSize + sublen], tmp_X[points[i * 20 + j] + collisionGridSize + sublen - 1]);
-				}
-				for (int sublen = 0; sublen < collisionGridSize; sublen++)
-				{
-					len3 += distance(tmp_X[points[i * 20 + j] - (numX + 1) * (collisionGridSize - sublen)], tmp_X[points[i * 20 + j] - (numX + 1) * (collisionGridSize - sublen - 1)]);
-				}
-				for (int sublen = 0; sublen > -collisionGridSize; sublen--)
-				{
-					len4 += distance(tmp_X[points[i * 20 + j] + (numX + 1) * (collisionGridSize + sublen)], tmp_X[points[i * 20 + j] + (numX + 1) * (collisionGridSize + sublen - 1)]);
-				}
-
-				Strain[points[i * 20 + j]] = std::max(std::max(len1, len2), std::max(len3, len4));
-
-				if (Strain[points[i * 20 + j]] >= init_X * 10)
-					Strain[points[i * 20 + j]] = (Strain[points[i * 20 + j]] - (init_X * 10)) / (init_X * 10);
-				else
-					Strain[points[i * 20 + j]] = ((init_X * 10) - Strain[points[i * 20 + j]]) / (init_X * 10);
-			}
-			//MGlobal::displayInfo(MString() + Strain[point]);
-		}
-	}
-
+	
 	for (int j = 0; j <= numY; j++)
 	{
 		for (int i = 0; i <= numX; i++)
 		{
-			point = i + (numX + 1)*j;
-
-			bool notActuator = true;
-
-			for (int k = 0; k < 400; k++)
-			{
-				if (point == points[k])
-				{
-					notActuator = false;
-					break;
-				}
-			}
+			point = getIndex(i, j);
 			
-			if (notActuator)
-			{
-				
 				if ((i != 0) && (i != numX) && (j != 0) && (j != numY))
 				{
 					float len1, len2, len3, len4;
-					len1 = distance(tmp_X[point], tmp_X[point - (numX + 1)]);
-					len2 = distance(tmp_X[point], tmp_X[point + (numX + 1)]);
-					len3 = distance(tmp_X[point], tmp_X[point - 1]);
-					len4 = distance(tmp_X[point], tmp_X[point + 1]);
+					len1 = distance(X[point], X[point - (numX + 1)]);
+					len2 = distance(X[point], X[point + (numX + 1)]);
+					len3 = distance(X[point], X[point - 1]);
+					len4 = distance(X[point], X[point + 1]);
 
 					Strain[point] = std::max(std::max(len1, len2), std::max(len3, len4));
 
@@ -1133,7 +1064,7 @@ void OpenClothPBDNode::CalStrain()
 					else
 						Strain[point] = (init_X - Strain[point]) / (init_X);
 				}
-			}
+			//}
 		}
 	}
 	//MGlobal::displayInfo(MString()+Strain[188]);

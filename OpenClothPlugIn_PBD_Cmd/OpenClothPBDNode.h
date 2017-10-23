@@ -79,9 +79,6 @@ public:
 	static MObject subHeight;
 	static MObject subWidth;
 
-	//strain configuration
-	static MObject MStrain;
-
 	/*node type*/
 	static MTypeId	id; //unique identifier used by create() to identify which node to create
 
