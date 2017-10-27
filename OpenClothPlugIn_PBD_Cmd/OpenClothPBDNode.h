@@ -39,8 +39,8 @@
 #include <maya/MItMeshPolygon.h>
 
 /*
-string $pPlane1[] = `polyPlane -w 10 -h 10 -sx 200 -sy 200 -ax 1 0 0 -cuv 2 -ch 1`;
-string $pPlane2[] = `polyPlane -w 10 -h 10 -sx 200 -sy 200 -ax 1 0 0 -cuv 2 -ch 1`;
+string $pPlane1[] = `polyPlane -w 35.34 -h 18 -sx 56 -sy 30 -ax 1 0 0 -cuv 2 -ch 1`;
+string $pPlane2[] = `polyPlane -w 35.34 -h 18 -sx 56 -sy 30 -ax 1 0 0 -cuv 2 -ch 1`;
 select -r polyPlane2 ;
 doDelete;
 

@@ -31,6 +31,7 @@ std::vector<unsigned short> indices;
 std::vector<DistanceConstraint> d_constraints;
 std::vector<BendingConstraint> b_constraints;
 
+std::vector<float> phi0; //initial dihedral angle between adjacent triangles//20171023
 
 //particle system
 std::vector<glm::vec3> X; //position
@@ -44,6 +45,7 @@ std::vector<glm::vec3> Ri; //Ri = Xi-Xcm
 std::vector<float> Strain; //max deformation length 171011
 
 float init_X;
+float init_Y;
 
 int oldX = 0, oldY = 0;
 float rX = 15, rY = 0;
@@ -53,8 +55,8 @@ const int GRID_SIZE = 10;
 
 const size_t solver_iterations = 2; //number of solver iterations per step. PBD  
 
-float kBend = 0.01f;//0.5f
-float kStretch = 1.f;//0.25f
+float kBend = 0.0f;//0.5f
+float kStretch = 0.5f;//0.25f
 float kDamp = 0.00125f;
 glm::vec3 gravity = glm::vec3(0.0f, -0.00981f, 0.0f);
 glm::vec3 nabi = glm::vec3(0.01f, 0.0f, 0.0f);//20170724
@@ -69,16 +71,21 @@ glm::vec3 Up = glm::vec3(0, 1, 0), Right, viewDir;
 float startTime = 0;// fps = 0;
 int totalFrames = 0;
 
-int numEllip = 400;// 1;
-glm::mat4 ellipsoid[400];// 1];
-glm::mat4 inverse_ellipsoid[400];// 1]; //20170925
+int numEllip = 420;// 1;
+glm::mat4 ellipsoid[420];// 1];
+glm::mat4 inverse_ellipsoid[420];// 1]; //20170925
 
 int iStacks = 30;
 int iSlices = 30;
-float fRadius =0.5f;
+float fRadius =2.0f;
 // Resolve constraint in object space
 glm::vec3 center = glm::vec3(0, 0, 0); //object space center of ellipsoid
-float radius = 0.5f;
+float radius = 2.0f;
+
+
+int actuatorIndex[420];//index of actuator
+int numActuatorX = 28;
+int numActuatorY = 15;
 float heightArray[400] = //  1    2    3    4     5     6     7     8     9      10   11   12     13   14    15    16     17    18    19   20
 {
 	0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0,  0.0,  0.0, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -388,6 +395,11 @@ void AddBendingConstraint(int pa, int pb, int pc, int pd, float k) {
 	b_constraints.push_back(c);
 }
 #endif
+inline glm::vec3 GetNormal(int ind0, int ind1, int ind2) {
+	glm::vec3 e1 = X[ind0] - X[ind1];
+	glm::vec3 e2 = X[ind2] - X[ind1];
+	return glm::normalize(glm::cross(e1, e2));
+}
 #ifndef USE_TRIANGLE_BENDING_CONSTRAINT
 inline float GetDihedralAngle(BendingConstraint c, float& d, glm::vec3& n1, glm::vec3& n2) {
 	n1 = GetNormal(c.p1, c.p2, c.p3);
@@ -400,7 +412,10 @@ inline int getIndex(int i, int j) {
 	return j*(numX + 1) + i;
 }
 #endif
-
+/*
+inline int getIndex(int i, int j) {
+	return j*(numX + 1) + i;
+}*/
 void OpenClothPBDNode::InitializeOpenCloth()
 {
 	//Initialize variable and Cosntraints
@@ -433,9 +448,14 @@ void OpenClothPBDNode::InitializeOpenCloth()
 	}
 
 	//strain config init
-	init_X = sqrt(pow(X[0].x - X[1].x, 2) + 
+	init_X = sqrt(	pow(X[0].x - X[1].x, 2) + 
 					pow(X[0].y - X[1].y, 2) + 
 					pow(X[0].z - X[1].z, 2));
+
+	init_Y = sqrt(	pow(X[0].x - X[getIndex(1,0)].x, 2) +
+					pow(X[0].y - X[getIndex(1, 0)].y, 2) +
+					pow(X[0].z - X[getIndex(1, 0)].z, 2)); //?20171027
+				
 
 	for (int i = 0; i < total_points; i++) {
 		Strain[i] = 0;
@@ -484,6 +504,30 @@ void OpenClothPBDNode::InitializeOpenCloth()
 				*id++ = i0; *id++ = i2; *id++ = i3;
 				*id++ = i0; *id++ = i3; *id++ = i1;
 			}
+		}
+	}
+
+
+	//fill in actuator indices 20171027
+	int unitGridX = (int)(numX) / (numActuatorX * 2);//grid numbers between actuators.
+	int unitGridY = (int)(numY) / (numActuatorY * 2);
+	int x, y;
+
+	for (j = 0; j < numActuatorY; j++)
+	{
+		for (i = 0; i < numActuatorX; i++)
+		{
+			x = unitGridX*i; //
+			y = unitGridY*j;
+			if (j % 2 == 0){
+				actuatorIndex[i + j * numActuatorX] = getIndex(2 * x + 2 * unitGridX, 2 * y + unitGridY);//cloth grid index of Layer1 actuator
+			}
+			else{
+				actuatorIndex[i + j * numActuatorX] = getIndex(2 * x + unitGridX, 2 * y + unitGridY);//cloth grid index of Layer2 actuator
+			}
+
+
+
 		}
 	}
 
@@ -573,7 +617,14 @@ void OpenClothPBDNode::InitializeOpenCloth()
 #endif
 	
 	//create a basic ellipsoid object
-/*400 */
+
+	//make a ellipsoid on the position of actuators 20171027
+	for (int i = 0; i < numActuatorX*numActuatorY; i++)
+	{
+		ellipsoid[i] = glm::translate(glm::mat4(1), glm::vec3(0 - radius, tmp_X[actuatorIndex[i]].y, tmp_X[actuatorIndex[i]].z));
+		inverse_ellipsoid[i] = glm::inverse(ellipsoid[i]);
+	}
+/*400 
 	for (int j = 0; j < 20; j++){
 		for (int i = 0; i <20; i++){
 			ellipsoid[i+20*j] = glm::translate(glm::mat4(1), glm::vec3(0-radius, (float)i/2 - 4.7, 4.7-(float)j/2));
@@ -581,7 +632,7 @@ void OpenClothPBDNode::InitializeOpenCloth()
 			inverse_ellipsoid[i + 20 * j] = glm::inverse(ellipsoid[i + 20 * j]);
 		}
 	}
-	
+	*/
 	/* cloth ize 20*20
 	for (int j = 0; j < 20; j++){
 		for (int i = 0; i <20; i++){
@@ -879,6 +930,46 @@ void OpenClothPBDNode::GroundCollision() //DevO: 24.07.2011
 }
 void OpenClothPBDNode::EllipsoidCollision() {
 
+	int unitGridX = (int)(numX) / (numActuatorX * 2);//grid numbers between actuators.
+	int unitGridY = (int)(numY) / (numActuatorY * 2);
+	int ellipsoidIndex;
+	int numCollisionGrid = (int)(radius / std::min(init_X, init_Y)); //how many grids will be take part in collision detection for one ellipsoid
+
+	for (int eY = 0; eY < numActuatorY; eY++){//for all ellipsoids
+		for (int eX = 0; eX < numActuatorX; eX++){
+			ellipsoidIndex = eX + eY*numActuatorX;//calculate ellipsoid index of (eX,eY)
+			
+			//cloth y grid collision range for each ellipsoid [0~numCollisionGrid] or [center-numCollisionGrid~center+numCollisionGrid] or[center-numCollisionGrid~numY]
+			for (int y = std::max(0, eY*unitGridY - numCollisionGrid); y <std::min(eY*unitGridY + numCollisionGrid,numY); y++){ 
+			
+				//cloth x  grid collision range for each ellipsoid [0~numCollisionGrid] or [center-numCollisionGrid~center+numCollisionGrid] or[center-numCollisionGrid~numX]
+				for (int x = std::max(0, eX*unitGridX - numCollisionGrid); x <std::min(eX*unitGridX + numCollisionGrid, numX); x++){					
+					glm::vec4 X_0 = (inverse_ellipsoid[ellipsoidIndex] * glm::vec4(tmp_X[actuatorIndex[ellipsoidIndex]], 1));
+					glm::vec3 delta0 = glm::vec3(X_0.x, X_0.y, X_0.z) - center;
+					float distance = glm::length(delta0);
+					if (distance < radius) {
+						delta0 = (radius - distance) * delta0 / distance;
+						// Transform the delta back to original space
+						glm::vec3 delta;
+						glm::vec3 transformInv;
+						transformInv = glm::vec3(ellipsoid[ellipsoidIndex][0].x, ellipsoid[ellipsoidIndex][1].x, ellipsoid[ellipsoidIndex][2].x);
+						transformInv /= glm::dot(transformInv, transformInv);
+						delta.x = glm::dot(delta0, transformInv);
+						transformInv = glm::vec3(ellipsoid[ellipsoidIndex][0].y, ellipsoid[ellipsoidIndex][1].y, ellipsoid[ellipsoidIndex][2].y);
+						transformInv /= glm::dot(transformInv, transformInv);
+						delta.y = glm::dot(delta0, transformInv);
+						transformInv = glm::vec3(ellipsoid[ellipsoidIndex][0].z, ellipsoid[ellipsoidIndex][1].z, ellipsoid[ellipsoidIndex][2].z);
+						transformInv /= glm::dot(transformInv, transformInv);
+						delta.z = glm::dot(delta0, transformInv);
+						tmp_X[actuatorIndex[ellipsoidIndex]] += delta;
+						V[actuatorIndex[ellipsoidIndex]] = glm::vec3(0);
+					}
+				}
+			}		
+		}
+	}
+
+	/*
 	int collisionGridSize = numX / (int)sqrt(numEllip);
 	int ellipsoidIndex;
 	int numCollisionGrid = (int)(radius / init_X);//2017116
@@ -920,6 +1011,7 @@ void OpenClothPBDNode::EllipsoidCollision() {
 			
 		}
 	}
+	*/
 		/*
 	for (int i = 0; i < numX; i++) {
 		for (int k = 0; k < numY; k++) {
@@ -962,10 +1054,18 @@ void OpenClothPBDNode::EllipsoidMove(float limit){
 	/* 20170921 */
 
 	//printf("ellipsoid[0]: %f\n", ellipsoid[3].x);
-	for (int j = 0; j < numEllip; j++){
-
+	for (int j = 0; j < numActuatorX*numActuatorY; j++){
+		/*
 		if (ellipsoid[j][3].x >= heightArray[numEllip - j - 1] / 2 - radius) {//limit
-			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(heightArray[numEllip - j - 1] / 2 - radius, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))
+			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(heightArray[numEllip - j - 1] / 2.0 - radius, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))
+			//ellipsoid = glm::rotate(ellipsoid, 45.0f, glm::vec3(1, 0, 0));
+			//ellipsoid[j] = glm::scale(ellipsoid[j], glm::vec3(fRadius, fRadius*1.5, fRadius*1.5));
+			inverse_ellipsoid[j] = glm::inverse(ellipsoid[j]);
+			
+		}
+		*/
+		if (ellipsoid[j][3].x >= 2.0) {//limit
+			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(2.0 - radius, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))
 			//ellipsoid = glm::rotate(ellipsoid, 45.0f, glm::vec3(1, 0, 0));
 			//ellipsoid[j] = glm::scale(ellipsoid[j], glm::vec3(fRadius, fRadius*1.5, fRadius*1.5));
 			inverse_ellipsoid[j] = glm::inverse(ellipsoid[j]);
@@ -973,40 +1073,38 @@ void OpenClothPBDNode::EllipsoidMove(float limit){
 		}
 		else{
 
-			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(ellipsoid[j][3].x + (heightArray[numEllip - j - 1] / 2 - radius)/100, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))//20170921(-1+0.01*i)에서 ellipsoid[3].x + 0.01로 수정. i static이라 초기화 문제 때문. 
+			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(ellipsoid[j][3].x + 0.01, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))//20170921(-1+0.01*i)에서 ellipsoid[3].x + 0.01로 수정. i static이라 초기화 문제 때문. 
 			//ellipsoid = glm::rotate(ellipsoid, 45.0f, glm::vec3(1, 0, 0));
 			//ellipsoid[j] = glm::scale(ellipsoid[j], glm::vec3(fRadius, fRadius*1.5, fRadius*1.5));
 			inverse_ellipsoid[j] = glm::inverse(ellipsoid[j]);
-		}
-		
-		
-		
+		}	
 	}
 	
 
 }
 void OpenClothPBDNode::UpdatePositionConstraint(float limit) {
 	bool check = false;
-	int numPoints = 400;//105;
+	
 
-	int points[400];
-
+	//[15][28];
+	/*
 	int collisionGridSize = (int)(std::min(numX,numY) / (int)sqrt(numEllip));
 	for (int i = 0; i < 20; i++) {
 		for (int j = 0; j < 20; j++) {
 			points[i * 20 + j] = getIndex((int)(collisionGridSize /2)+ collisionGridSize * i, (int)(collisionGridSize/2) + collisionGridSize * j);
 		}
 	}
+	*/
 
-	for (int i = 0; i < numPoints; i++) {
+	for (int i = 0; i < numActuatorX*numActuatorY; i++) {
 
-		if (tmp_X[points[i]].x >= heightArray[numPoints - i - 1] / 2.0) {
-			tmp_X[points[i]].x = heightArray[numPoints - i - 1] / 2.0;
-			W[points[i]] = 0.0;
+		if (tmp_X[actuatorIndex[i]].x >= 2.0){//heightArray[numPoints - i - 1] / 2.0) {
+			tmp_X[actuatorIndex[i]].x = 2.0;// heightArray[numPoints - i - 1] / 2.0;
+			W[actuatorIndex[i]] = 0.0;
 		}
 		else {
-			tmp_X[points[i]].x += (heightArray[numPoints - i - 1] / 2.0) / 100;
-			W[points[i]] = 0.0;
+			tmp_X[actuatorIndex[i]].x += 0.01;// (heightArray[numPoints - i - 1] / 2.0) / 200;
+			W[actuatorIndex[i]] = 0.0;
 		}
 		
 		
