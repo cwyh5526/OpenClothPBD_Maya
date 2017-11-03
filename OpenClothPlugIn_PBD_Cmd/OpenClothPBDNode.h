@@ -39,8 +39,15 @@
 #include <maya/MItMeshPolygon.h>
 
 /*
-string $pPlane1[] = `polyPlane -w 35.34 -h 18 -sx 56 -sy 30 -ax 1 0 0 -cuv 2 -ch 1`;
-string $pPlane2[] = `polyPlane -w 35.34 -h 18 -sx 56 -sy 30 -ax 1 0 0 -cuv 2 -ch 1`;
+<시나리오>
+setting 변경
+mel 실행
+재생
+버튼 막 누르기 ㅎㅎ
+*/
+/*
+string $pPlane1[] = `polyPlane -w 35.34 -h 18 -sx 224 -sy 120 -ax 1 0 0 -cuv 2 -ch 1`;
+string $pPlane2[] = `polyPlane -w 35.34 -h 18 -sx 224 -sy 120 -ax 1 0 0 -cuv 2 -ch 1`;
 select -r polyPlane2 ;
 doDelete;
 
@@ -57,8 +64,42 @@ connectAttr pPlaneShape1.worldMesh[0] OpenClothPBDNode1.inputMesh;
 connectAttr OpenClothPBDNode1.outputMesh pPlaneShape2.inMesh;
 select -r pPlane1;
 toggleVisibilityAndKeepSelection `optionVar -query toggleVisibilityAndKeepSelectionBehaviour`;
-*/
 
+select -r pPlane2;
+setAttr OpenClothPBDNode1.colorDimension 1;
+toggleShadeMode();
+select -cl;
+*/
+/*
+if (`window -exists myWindow`) deleteUI myWindow;
+window -title "new window" -widthHeight 300 200 myWindow;
+if (`windowPref -exists myWindow`) windowPref -remove myWindow;
+// columnLayout;
+// columnLayout -adjustableColumn true;
+columnLayout -columnAttach "both" 5 -rowSpacing 5 -columnWidth 100;
+button -label "shading" -command "setAttr OpenClothPBDNode1.colorDimension 0;";
+button -label "Actuator Strain" -command "setAttr OpenClothPBDNode1.colorDimension 1;";
+button -label "Nodal Strain" -command "setAttr OpenClothPBDNode1.colorDimension 2;";
+showWindow myWindow;
+*/
+/*
+proc no_texture(){
+setAttr "OpenClothPBDNode1.colorDimension" 0;
+}
+proc actuator(){
+setAttr "OpenClothPBDNode1.colorDimension" 1;
+}
+proc nodal(){
+setAttr "OpenClothPBDNode1.colorDimension" 2;
+}
+
+window;
+columnLayout;
+button -label "no texture" -command "no_texture";
+button -label "actuator" -command "actuator";
+button -label "nodal"  -command "nodal";
+showWindow;
+*/
 class OpenClothPBDNode : public MPxNode
 {
 public:
@@ -78,6 +119,9 @@ public:
 	static MObject width;
 	static MObject subHeight;
 	static MObject subWidth;
+
+	//strain configuration
+	static MObject colorDim;
 
 	/*node type*/
 	static MTypeId	id; //unique identifier used by create() to identify which node to create
@@ -101,8 +145,9 @@ protected:
 
 	void UpdateExternalConstraints();
 	void Integrate(float deltaTime);
-	
-	void CalStrain();
+
+	void CalActuatorStrain();
+	void CalNodalStrain();
 
 	void InitializeOpenCloth();
 private:
