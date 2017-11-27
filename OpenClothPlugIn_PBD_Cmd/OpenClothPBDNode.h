@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <math.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp> //for matrices
@@ -44,6 +45,63 @@ setting 변경
 mel 실행
 재생
 버튼 막 누르기 ㅎㅎ
+*/
+/*
+{
+string $windowName = "ChamelUI";
+if (`window -exists $windowName`) deleteUI $windowName;
+
+window -title "Chameleon Surface Cloth Simulator" $windowName;
+columnLayout ;
+string $sourceLayers[] = {"Wire Frame","Shading","Actuator Strain","Nodal Strain","Texture"};
+string $matteLayerSelectionOpts = `rowColumnLayout -numberOfColumns 2 -columnWidth 1 142 -columnWidth 2 150`;
+text -l "                     Viewing Mode";
+optionMenu -l "" -cc "optionVar -sv \"cml_source\" \"#1\"" SourceLayerSelection;
+for($s in $sourceLayers)
+menuItem -l $s;
+//menuItem -label "Wire Frame" -dragMenuCommand "";;
+// menuItem -label "Shading" -dragMenuCommand "setAttr OpenClothPBDNode1.colorDimension 0;";
+// menuItem -label "Actuator Strain"-dragMenuCommand "setAttr OpenClothPBDNode1.colorDimension 1;";
+// menuItem -label "Nodal Strain" -dragMenuCommand "setAttr OpenClothPBDNode1.colorDimension 2;";
+// menuItem -label "Texture"-dragMenuCommand "setAttr OpenClothPBDNode1.colorDimension 2;";
+setParent ..;
+string $sourceLayerDefault = (`optionVar -ex "cml_source"`) ? `optionVar -q "cml_source"` : "masterLayer";
+
+floatSliderGrp -label "Width" -field true
+-fieldMinValue 0 -fieldMaxValue 100 -precision 2
+-minValue 0 -maxValue 100 -value 35.34;
+floatSliderGrp -label "Height" -field true
+-fieldMinValue 0 -fieldMaxValue 100 -precision 2
+-minValue 0 -maxValue 100 -value 18.00;
+intSliderGrp -label "Subdivisions Width" -field true
+-fieldMinValue 0 -fieldMaxValue 300
+-minValue 0 -maxValue 300 -value 224;
+intSliderGrp -label "Subdivisions Height" -field true
+-fieldMinValue 0 -fieldMaxValue 300
+-minValue 0 -maxValue 300 -value 120;
+button -label "Change" -c buttonCmd;
+showWindow;
+}
+
+global proc buttonCmd()
+{
+string $matteLayer = `optionMenu -q -v SourceLayerSelection`;
+switch($matteLayer){
+case "Wire Frame" :
+break;
+case "Shading" :
+setAttr OpenClothPBDNode1.colorDimension 0;
+break;
+case "Actuator Strain" :
+setAttr OpenClothPBDNode1.colorDimension 1;
+break;
+case "Nodal Strain" :
+setAttr OpenClothPBDNode1.colorDimension 2;
+break;
+case "Texture" :
+break;
+}
+};
 */
 /*
 string $pPlane1[] = `polyPlane -w 35.34 -h 18 -sx 224 -sy 120 -ax 1 0 0 -cuv 2 -ch 1`;
@@ -137,17 +195,19 @@ protected:
 	void UpdateInternalConstraints(float deltaTime);
 	void UpdateDistanceConstraint(int i);
 	void UpdateBendingConstraint(int index);
-	void UpdatePositionConstraint(float limit);//20170925
+	void UpdatePositionConstraint();//20170925
 
 	void GroundCollision();
 	void EllipsoidCollision();
-	void EllipsoidMove(float limit);
+	void EllipsoidMove();
 
 	void UpdateExternalConstraints();
 	void Integrate(float deltaTime);
 
 	void CalActuatorStrain();
 	void CalNodalStrain();
+
+	void CalEllipsoidRadius();
 
 	void InitializeOpenCloth();
 private:

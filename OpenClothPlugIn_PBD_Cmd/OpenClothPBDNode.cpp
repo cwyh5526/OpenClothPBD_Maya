@@ -12,7 +12,7 @@ struct BendingConstraint { int p1, p2, p3, p4;	float rest_length1, rest_length2,
 #endif
 //
 static int prevNumX = 0, prevNumY = 0;
-static int prevcolorDim = 0;//color
+int prevcolorDim = 0;//color
 static int cd;//color
 static int numX = 0, numY = 0;
 size_t total_points = (numX + 1)*(numY + 1);
@@ -58,7 +58,7 @@ const int GRID_SIZE = 10;
 const size_t solver_iterations = 2; //number of solver iterations per step. PBD  
 
 float kBend = 0.01f;//0.5f
-float kStretch = 1.f;//0.25f
+float kStretch = 0.25f;//0.25f
 float kDamp = 0.00125f;
 glm::vec3 gravity = glm::vec3(0.0f, -0.00981f, 0.0f);
 glm::vec3 nabi = glm::vec3(0.01f, 0.0f, 0.0f);//20170724
@@ -79,15 +79,17 @@ glm::mat4 inverse_ellipsoid[420];// 1]; //20170925
 
 int iStacks = 30;
 int iSlices = 30;
-float fRadius = 0.1f;
+float fRadius = 0.5f;
 // Resolve constraint in object space
 glm::vec3 center = glm::vec3(0, 0, 0); //object space center of ellipsoid
-float radius = 0.1f;
-
+float radius =1.0f;
+float radiusArr[420] = { 1.0f, };
+float curvature[420] = { 2.0f, };
+float heightDistance[420] = { 0.f, };
 
 int actuatorIndex[420];//index of actuator
-int numActuatorX = 28;
-int numActuatorY = 15;
+const int numActuatorX = 28;
+const int numActuatorY = 15;
 double heightArray[420] = //  1    2    3    4     5     6     7     8     9      10   11   12     13   14    15    16     17    18    19   20
 {
 	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.6, 1.6, 1.6, 1.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  //1
@@ -100,13 +102,13 @@ double heightArray[420] = //  1    2    3    4     5     6     7     8     9    
 
 	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 3.4, 3.6, 4.3, 4.4, 4.4, 4.3, 3.6, 3.4, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  //5
 
-	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 2.9, 3.5, 3.7, 5.5, 6.5, 5.5, 3.7, 3.5, 2.9, 1.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,     //6
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 2.9, 3.5, 3.7, 5.5, 6.2, 5.5, 3.7, 3.5, 2.9, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,     //6
 
-	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 3.0, 3.4, 3.8, 3.8, 5.4, 5.4, 3.8, 3.8, 3.4, 3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  //7
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 3.0, 3.4, 3.8, 3.8, 5.2, 5.2, 3.8, 3.8, 3.4, 3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  //7
 
 	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 3.1, 3.7, 3.2, 3.7, 4.8, 3.7, 3.2, 3.7, 3.1, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,     //8
 
-	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.8, 3.6, 3.0, 3.0, 4.0, 4.0, 3.0, 3.0, 3.6, 2.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  //9
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.8, 3.6, 3.0, 3.0, 4.3, 4.3, 3.0, 3.0, 3.6, 2.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  //9
 
 	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 3.1, 4.1, 4.2, 4.5, 4.8, 4.5, 4.2, 4.1, 3.1, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,     //10
 
@@ -290,7 +292,7 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 
 MObject OpenClothPBDNode::createCloth(const MTime& time, MObject& inData, MObject& outData, MStatus& stat)
 {
-	MGlobal::displayInfo("######OpenClothPBDNode create()");
+	//MGlobal::displayInfo("######OpenClothPBDNode create()");
 	MFnMesh meshFn;
 	meshFn.copy(inData, outData);
 	meshFn.setObject(outData);
@@ -325,7 +327,7 @@ MObject OpenClothPBDNode::createCloth(const MTime& time, MObject& inData, MObjec
 
 		for (int i = 0; i<total_points; i++)
 		{
-			colors.append(0.35, 0.35, 0.35, 1);
+			colors.append(0.35f, 0.35f, 0.35f, 1.0f);
 			vertexId.append(i);
 		}
 
@@ -365,6 +367,22 @@ MObject OpenClothPBDNode::createCloth(const MTime& time, MObject& inData, MObjec
 			}
 			meshFn.setVertexColors(colors, vertexId);
 			meshFn.setPoints(iarr);
+		}
+		else if (cd == 3)
+		{
+			if (curvature[0] != 0){
+				for (int i = 0; i < total_points; i++)
+				{
+					double s = (1 - std::min(std::max(radiusArr[i], 0.f), 1.f)) * 241;
+					//MGlobal::displayInfo(MString("strain = ") + Strain[i]);
+					MColor c(MColor::kHSV, s, 1.0, 1.0, 1.0);
+					colors.append(c);
+					vertexId.append(i);
+
+				}
+				meshFn.setVertexColors(colors, vertexId);
+				meshFn.setPoints(iarr);
+			}
 		}
 		else
 		{
@@ -443,15 +461,19 @@ inline int getIndex(int i, int j) {
 void OpenClothPBDNode::InitializeOpenCloth()
 {
 	//Initialize variable and Cosntraints
-	MGlobal::displayInfo("######OpenClothPBDNode InitializeOpenCloth()");
+	//MGlobal::displayInfo("######OpenClothPBDNode InitializeOpenCloth()");
 
 	size_t i = 0, j = 0, count = 0;
 	int l1 = 0, l2 = 0;
 	float ypos = 7.0f;
 	int v = numY + 1;
 	int u = numX + 1;
-
-
+	for (int i = 0; i < 420; ++i){
+		if (radiusArr[i] != 1.f){
+			MGlobal::displayInfo("######OpenClothPBDNode InitializeOpenCloth()");
+			break;
+		}
+	}
 	//iarr.clear();//20170601 //20170901
 
 	indices.resize(numX*numY * 2 * 3);
@@ -475,8 +497,8 @@ void OpenClothPBDNode::InitializeOpenCloth()
 		pow(X[0].y - X[1].y, 2) +
 		pow(X[0].z - X[1].z, 2));
 	init_Y = sqrt(pow(X[0].x - X[getIndex(1, 0)].x, 2) +
-		pow(X[0].y - X[getIndex(1, 0)].y, 2) +
-		pow(X[0].z - X[getIndex(1, 0)].z, 2)); //?20171027
+		pow(X[0].y - X[getIndex(0, 1)].y, 2) +
+		pow(X[0].z - X[getIndex(0, 1)].z, 2)); //?20171103
 
 	for (int i = 0; i < total_points; i++) {
 		Strain[i] = 0;
@@ -501,6 +523,7 @@ void OpenClothPBDNode::InitializeOpenCloth()
 			else {
 				actuatorIndex[i + j * numActuatorX] = getIndex(2 * x + unitGridX, 2 * y + unitGridY);//cloth grid index of Layer2 actuator
 			}
+			radiusArr[i + j * numActuatorX] = 1.f;//20171104
 		}
 	}
 
@@ -639,7 +662,8 @@ void OpenClothPBDNode::InitializeOpenCloth()
 	/*400 */
 	for (int i = 0; i < numActuatorX*numActuatorY; i++)
 	{
-		ellipsoid[i] = glm::translate(glm::mat4(1), glm::vec3(0 - radius, tmp_X[actuatorIndex[i]].y, tmp_X[actuatorIndex[i]].z));
+		ellipsoid[i] = glm::translate(glm::mat4(1), glm::vec3(0 - radiusArr[i], tmp_X[actuatorIndex[i]].y, tmp_X[actuatorIndex[i]].z));
+
 		inverse_ellipsoid[i] = glm::inverse(ellipsoid[i]);
 	}
 
@@ -663,7 +687,7 @@ void OpenClothPBDNode::InitializeOpenCloth()
 }
 void OpenClothPBDNode::StepPhysics(float dt){
 
-	MGlobal::displayInfo("######OpenClothPBDNode StepPhy()");
+	//MGlobal::displayInfo("######OpenClothPBDNode StepPhy()");
 	ComputeForces();
 	IntegrateExplicitWithDamping(dt);
 
@@ -947,70 +971,78 @@ void OpenClothPBDNode::GroundCollision() //DevO: 24.07.2011
 }
 void OpenClothPBDNode::EllipsoidCollision() {
 
-	int ellipsoidIndex;
-	int numCollisionGrid = (int)(radius / init_X);//2017116
+	int numCollisionGridY ; //y-range of cloth grid for collision detection 
+	int numCollisionGridX ; //x-range of cloth grid for collision dtetction
 
-	for (int eY = 0; eY < (int)sqrt(numEllip); eY++) {
-		for (int eX = 0; eX < (int)sqrt(numEllip); eX++) {
-			ellipsoidIndex = eX + eY*(int)sqrt(numEllip);
-			int eCenterX = (int)(collisionGridSize / 2) + collisionGridSize*eX;
-			int eCenterY = (int)(collisionGridSize / 2) + collisionGridSize*eY;
-			for (int y = std::max(0, eCenterY - numCollisionGrid); y < std::min(eCenterY + numCollisionGrid, numY); y++)
-			{
-				for (int x = std::max(0, eCenterX - numCollisionGrid); x < std::min(eCenterX + numCollisionGrid, numX); x++)
-				{
-					int index = getIndex(y, x);
+	
+	int clothIndex;  //1-dimension index
+	int clothIndexX; //2d index
+	int clothIndexY; //2d index
+	
+	for (int e = 0; e < numActuatorX*numActuatorY;e++){			//for all ellipsoid e
+		clothIndexX = actuatorIndex[e] % (numX + 1);			//calculate the x,y 
+		clothIndexY = (int)(actuatorIndex[e] / (numX+1));
 
-					glm::vec4 X_0 = (inverse_ellipsoid[ellipsoidIndex] * glm::vec4(tmp_X[index], 1));
-					glm::vec3 delta0 = glm::vec3(X_0.x, X_0.y, X_0.z) - center;
-					float distance = glm::length(delta0);
-					if (distance < radius) {
-						delta0 = (radius - distance) * delta0 / distance;
+		numCollisionGridY = (int)(radiusArr[e] / init_Y);
+		numCollisionGridX = (int)(radiusArr[e] / init_X);
 
-						// Transform the delta back to original space
-						glm::vec3 delta;
-						glm::vec3 transformInv;
-						transformInv = glm::vec3(ellipsoid[ellipsoidIndex][0].x, ellipsoid[ellipsoidIndex][1].x, ellipsoid[ellipsoidIndex][2].x);
-						transformInv /= glm::dot(transformInv, transformInv);
-						delta.x = glm::dot(delta0, transformInv);
-						transformInv = glm::vec3(ellipsoid[ellipsoidIndex][0].y, ellipsoid[ellipsoidIndex][1].y, ellipsoid[ellipsoidIndex][2].y);
-						transformInv /= glm::dot(transformInv, transformInv);
-						delta.y = glm::dot(delta0, transformInv);
-						transformInv = glm::vec3(ellipsoid[ellipsoidIndex][0].z, ellipsoid[ellipsoidIndex][1].z, ellipsoid[ellipsoidIndex][2].z);
-						transformInv /= glm::dot(transformInv, transformInv);
-						delta.z = glm::dot(delta0, transformInv);
-						tmp_X[index] += delta;
-						V[index] = glm::vec3(0);
-					}
+		for (int y = std::max(0, clothIndexY - numCollisionGridY); y < std::min(clothIndexY + numCollisionGridY, numY); y++){
+			for (int x = std::max(0, clothIndexX - numCollisionGridX); x < std::min(clothIndexX + numCollisionGridX, numX); x++){
+				clothIndex = getIndex(x, y);
+
+				glm::vec4 X_0 = (inverse_ellipsoid[e] * glm::vec4(tmp_X[clothIndex], 1));
+				glm::vec3 delta0 = glm::vec3(X_0.x, X_0.y, X_0.z) - center;
+				float distance = glm::length(delta0);
+				if (distance <  radiusArr[e]) {
+					delta0 = (radiusArr[e] - distance) * delta0 / distance;
+
+					// Transform the delta back to original space
+					glm::vec3 delta;
+					glm::vec3 transformInv;
+					transformInv = glm::vec3(ellipsoid[e][0].x, ellipsoid[e][1].x, ellipsoid[e][2].x);
+					transformInv /= glm::dot(transformInv, transformInv);
+					delta.x = glm::dot(delta0, transformInv);
+					transformInv = glm::vec3(ellipsoid[e][0].y, ellipsoid[e][1].y, ellipsoid[e][2].y);
+					transformInv /= glm::dot(transformInv, transformInv);
+					delta.y = glm::dot(delta0, transformInv);
+					transformInv = glm::vec3(ellipsoid[e][0].z, ellipsoid[e][1].z, ellipsoid[e][2].z);
+					transformInv /= glm::dot(transformInv, transformInv);
+					delta.z = glm::dot(delta0, transformInv);
+					tmp_X[clothIndex] += delta;
+					V[clothIndex] = glm::vec3(0);
 				}
 			}
-
 		}
+		
 	}
-
+	
 }
 
-void OpenClothPBDNode::EllipsoidMove(float limit){
+void OpenClothPBDNode::EllipsoidMove(){
 	/* 20170921 */
-
+	
+	
 	//printf("ellipsoid[0]: %f\n", ellipsoid[3].x);
-	for (int j = 0; j < numEllip; j++) {
+	for (int i = 0; i < numActuatorX*numActuatorY; i++) {
+		
+		//if (ellipsoid[i][3].x >= heightArray[i] - radiusArr[i]) {//limit
+		//	ellipsoid[i] = glm::translate(glm::mat4(1), glm::vec3(heightArray[i] - radiusArr[i], ellipsoid[i][3].y, ellipsoid[i][3].z));//2017.05.29 glm::vec3(0,2,0))
+		//	//ellipsoid[i] = glm::scale(ellipsoid[i], glm::vec3(radius, radius, radius));//20171103
+		//	inverse_ellipsoid[i] = glm::inverse(ellipsoid[i]);
 
-		if (ellipsoid[j][3].x >= heightArray[numEllip - j - 1] / 2 - radius) {//limit
-			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(heightArray[numEllip - j - 1] / 2 - radius, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))
-			inverse_ellipsoid[j] = glm::inverse(ellipsoid[j]);
+		//}
+		//else {
 
-		}
-		else {
+			ellipsoid[i] = glm::translate(glm::mat4(1), glm::vec3(tmp_X[actuatorIndex[i]].x - radiusArr[i], ellipsoid[i][3].y, ellipsoid[i][3].z));//2017.05.29 glm::vec3(0,2,0))//20170921(-1+0.01*i)에서 ellipsoid[3].x + 0.01로 수정. i static이라 초기화 문제 때문. 
+			//ellipsoid[i] = glm::scale(ellipsoid[i], glm::vec3(radius, radius, radius));//20171103
 
-			ellipsoid[j] = glm::translate(glm::mat4(1), glm::vec3(ellipsoid[j][3].x + (heightArray[numEllip - j - 1] / 2 - radius) / 100, ellipsoid[j][3].y, ellipsoid[j][3].z));//2017.05.29 glm::vec3(0,2,0))//20170921(-1+0.01*i)에서 ellipsoid[3].x + 0.01로 수정. i static이라 초기화 문제 때문. 
-			inverse_ellipsoid[j] = glm::inverse(ellipsoid[j]);
-		}
+			inverse_ellipsoid[i] = glm::inverse(ellipsoid[i]);
+		//}
 	}
 
 
 }
-void OpenClothPBDNode::UpdatePositionConstraint(float limit) {
+void OpenClothPBDNode::UpdatePositionConstraint() {
 
 	for (int i = 0; i < numActuatorX*numActuatorY; i++) {
 
@@ -1027,9 +1059,12 @@ void OpenClothPBDNode::UpdatePositionConstraint(float limit) {
 }
 
 void OpenClothPBDNode::UpdateExternalConstraints() {
-	//EllipsoidMove(1.0-radius);
+	
+	CalEllipsoidRadius();
 
-	//EllipsoidCollision();
+	EllipsoidMove();
+
+	EllipsoidCollision();
 
 }
 //----------------------------------------------------------------------------------------------------
@@ -1044,7 +1079,7 @@ void OpenClothPBDNode::UpdateInternalConstraints(float deltaTime) {
 		for (i = 0; i<b_constraints.size(); i++) {
 			UpdateBendingConstraint(i);
 		}
-		UpdatePositionConstraint(1.0);
+		UpdatePositionConstraint();
 		//GroundCollision();
 	}
 }
@@ -1107,36 +1142,94 @@ void OpenClothPBDNode::CalNodalStrain()
 		{
 			point = i + (numX + 1)*j;
 
-			bool notActuator = true;
-
-			for (int k = 0; k < 400; k++)
+			if ((i != 0) && (i != numX) && (j != 0) && (j != numY))
 			{
-				if (point == actuatorIndex[k])
-				{
-					notActuator = false;
-					break;
-				}
-			}
+				float len1, len2, len3, len4;
+				len1 = distance(tmp_X[point], tmp_X[point - (numX + 1)]);
+				len2 = distance(tmp_X[point], tmp_X[point + (numX + 1)]);
+				len3 = distance(tmp_X[point], tmp_X[point - 1]);
+				len4 = distance(tmp_X[point], tmp_X[point + 1]);
 
-			if (notActuator)
-			{
+				Strain[point] = std::max(std::max(len1, len2), std::max(len3, len4));
 
-				if ((i != 0) && (i != numX) && (j != 0) && (j != numY))
-				{
-					float len1, len2, len3, len4;
-					len1 = distance(tmp_X[point], tmp_X[point - (numX + 1)]);
-					len2 = distance(tmp_X[point], tmp_X[point + (numX + 1)]);
-					len3 = distance(tmp_X[point], tmp_X[point - 1]);
-					len4 = distance(tmp_X[point], tmp_X[point + 1]);
-
-					Strain[point] = std::max(std::max(len1, len2), std::max(len3, len4));
-
-					if (Strain[point] >= init_X)
-						Strain[point] = (Strain[point] - init_X) / (init_X);
-					else
-						Strain[point] = (init_X - Strain[point]) / (init_X);
-				}
-			}
+				if (Strain[point] >= init_X)
+					Strain[point] = (Strain[point] - init_X) / (init_X);
+				else
+					Strain[point] = (init_X - Strain[point]) / (init_X);
+			}			
 		}
 	}
+}
+
+
+void OpenClothPBDNode::CalEllipsoidRadius(){
+
+	int c;
+	int p[6]; //p0 is the centerindex of each points around 
+	float disCP[6];
+	float disPP[6];
+	float angPP[6];
+	float s[6];
+	float a[6];
+	float sumAng = 0.0f;
+	float A = 0.0f;
+	float deltaAng;
+
+
+	for (int ay = 1; ay < numActuatorY - 1; ay++){ //for all actuators inside of the boundary
+		for (int ax = 1; ax < numActuatorX-1; ax++){
+
+			c = (ax)+(ay)*numActuatorX;
+
+			if (ay % 2 == 0){//짝수 행, layer 1 27개 actuator
+				p[0] = (ax)+(ay - 1)*numActuatorX; p[1] = (ax + 1) + (ay - 1)*numActuatorX;
+				p[4] = (ax)+(ay + 1)*numActuatorX; p[5] = (ax + 1) + (ay + 1)*numActuatorX;
+			}
+			else{
+				p[0] = (ax - 1) + (ay - 1)*numActuatorX; p[1] = (ax)+(ay - 1)*numActuatorX;
+				p[4] = (ax - 1) + (ay + 1)*numActuatorX; p[5] = (ax)+(ay + 1)*numActuatorX;
+			}
+			p[2] = (ax - 1) + (ay)*numActuatorX;
+			p[3] = (ax + 1) + (ay)*numActuatorX;
+
+			/*height*/
+			for (int i = 0; i < 6; i++){
+				int dis = tmp_X[actuatorIndex[c]].x - tmp_X[actuatorIndex[p[i]]].x;// 양수면 c가 다른 애들보다 앞에 있다는 뜻임. 음수면 다들 나보다 앞에있다는 것. 그러면 크기가 별로 의미가 없나.
+				if (heightDistance[c] < dis){ //가장 큰 distance를 넣어준다.
+					heightDistance[c] = dis;
+				}
+			}
+			/*curvature
+			for (int i = 0; i < 6; i++)
+			{
+				disCP[i] = distance(tmp_X[actuatorIndex[c]], tmp_X[actuatorIndex[p[i]]]);
+				disPP[i] = distance(tmp_X[actuatorIndex[p[i]]], tmp_X[actuatorIndex[p[(i + 1)%6]]]); //%6 하는건 disPP[5]는 p[5] p[0]이랑 해야되니까.
+				
+			}
+			for (int i = 0; i < 6; i++){
+				angPP[i] = acos((disCP[i] * disCP[i] + disCP[(i + 1) % 6] * disCP[(i + 1) % 6] - disPP[i] * disPP[i])/(2*disCP[i]*disCP[(i+1)%6]));
+				s[i] = (disCP[i] + disCP[(i + 1) % 6] + disPP[i]) / 2;
+				a[i] = sqrt(s[i] * (s[i] - disCP[i])*(s[i] - disCP[(i + 1) % 6])*(s[i] - disPP[i]));
+				
+			}
+			for (int i = 0; i < 6; i++){
+				sumAng += angPP[i];
+				A += a[i];
+			}
+
+			deltaAng = 2 * PI - sumAng;
+			curvature[c] = abs((3 * deltaAng) / A);
+
+			radiusArr[c] = 1 / (curvature[c] + 1e-16);
+			*/
+			radiusArr[c] = std::min(1.0f/ heightDistance[c],1.5f);
+			
+			MString str = "c= ";
+			str = str + c + " curvature[c]= " + curvature[c] + "\n";
+			//MGlobal::displayInfo(MString("######OpenClothPBDNode Calculate curvature"+str));
+		}
+	}
+
+
+
 }
