@@ -10,9 +10,12 @@ struct BendingConstraint { int p1, p2, p3;	float rest_length, w, k; float k_prim
 #else
 struct BendingConstraint { int p1, p2, p3, p4;	float rest_length1, rest_length2, w1, w2, k; float k_prime; };
 #endif
-//
+
+//previous values uesd to determine re-initializeation
 static int prevNumX = 0, prevNumY = 0;
 int prevcolorDim = 0;//color
+float prevRadius=1.0f;
+
 static int cd;//color
 static int numX = 0, numY = 0;
 size_t total_points = (numX + 1)*(numY + 1);
@@ -133,6 +136,7 @@ MObject OpenClothPBDNode::width;
 MObject OpenClothPBDNode::subWidth;
 MObject OpenClothPBDNode::subHeight;
 MObject OpenClothPBDNode::colorDim;//color
+MObject OpenClothPBDNode::ellipRadius; //20171127
 
 MFloatPointArray  OpenClothPBDNode::iarr;
 
@@ -183,6 +187,7 @@ MStatus OpenClothPBDNode::initialize()
 	subWidth = nAttr.create("subWidth", "sw", MFnNumericData::kInt, 0);
 	subHeight = nAttr.create("subHeight", "sh", MFnNumericData::kInt, 0);
 	colorDim = nAttr.create("colorDimension", "cd", MFnNumericData::kInt, 0);//color
+	ellipRadius = nAttr.create("ellipsoidRadius", "r", MFnNumericData::kFloat, 1.0);
 
 	addAttribute(time);
 	addAttribute(inputMesh);
@@ -193,6 +198,7 @@ MStatus OpenClothPBDNode::initialize()
 	addAttribute(subWidth);//2017.07.19
 	addAttribute(subHeight);//2017.07.19
 	addAttribute(colorDim);//color
+	addAttribute(ellipRadius);//20171127
 
 	attributeAffects(inputMesh, outputMesh);
 	attributeAffects(time, outputMesh);
@@ -203,6 +209,7 @@ MStatus OpenClothPBDNode::initialize()
 	attributeAffects(subHeight, outputMesh);//2017.07.19
 
 	attributeAffects(colorDim, outputMesh);//2017.07.19
+	attributeAffects(ellipRadius, outputMesh);//20171127
 
 	return MS::kSuccess;
 }
@@ -234,18 +241,27 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 		McheckErr(returnStatus, "Error getting subHeight data handle\n");
 
 		MDataHandle cdHnd = data.inputValue(colorDim, &returnStatus);//color
-		McheckErr(returnStatus, "Error getting subHeight data handle\n");//color
+		McheckErr(returnStatus, "Error getting colorDim data handle\n");//color
 
+		MDataHandle radHnd = data.inputValue(ellipRadius, &returnStatus);//20171127
+		McheckErr(returnStatus, "Error getting ellipRadius data handle\n");//20171127
+
+		//keep previous values to determine needs of re-initialization
 		prevNumX = numX;//20170724
 		prevNumY = numY;//20170724
 
 		prevcolorDim = cd;
 
+		prevRadius = radius;//20171127
+
+		//get current values 
 		numX = subWHnd.asInt();
 		numY = subHHnd.asInt();
 		total_points = (numX + 1)*(numY + 1);
 
 		cd = cdHnd.asInt();
+
+		radius = radHnd.asFloat();//20171127
 
 		/* Get input*/
 		MDataHandle inputData = data.inputValue(inputMesh, &returnStatus);
@@ -314,7 +330,7 @@ MObject OpenClothPBDNode::createCloth(const MTime& time, MObject& inData, MObjec
 	if (time.value() == 1){
 		first = true;
 	}
-	if (prevNumX != numX || prevNumY != numY || prevcolorDim != cd) //20170817
+	if (prevNumX != numX || prevNumY != numY || prevcolorDim != cd || prevRadius !=radius) //20171127
 	{
 		first = true;
 	}
@@ -367,22 +383,6 @@ MObject OpenClothPBDNode::createCloth(const MTime& time, MObject& inData, MObjec
 			}
 			meshFn.setVertexColors(colors, vertexId);
 			meshFn.setPoints(iarr);
-		}
-		else if (cd == 3)
-		{
-			if (curvature[0] != 0){
-				for (int i = 0; i < total_points; i++)
-				{
-					double s = (1 - std::min(std::max(radiusArr[i], 0.f), 1.f)) * 241;
-					//MGlobal::displayInfo(MString("strain = ") + Strain[i]);
-					MColor c(MColor::kHSV, s, 1.0, 1.0, 1.0);
-					colors.append(c);
-					vertexId.append(i);
-
-				}
-				meshFn.setVertexColors(colors, vertexId);
-				meshFn.setPoints(iarr);
-			}
 		}
 		else
 		{
@@ -468,12 +468,7 @@ void OpenClothPBDNode::InitializeOpenCloth()
 	float ypos = 7.0f;
 	int v = numY + 1;
 	int u = numX + 1;
-	for (int i = 0; i < 420; ++i){
-		if (radiusArr[i] != 1.f){
-			MGlobal::displayInfo("######OpenClothPBDNode InitializeOpenCloth()");
-			break;
-		}
-	}
+
 	//iarr.clear();//20170601 //20170901
 
 	indices.resize(numX*numY * 2 * 3);
@@ -523,7 +518,7 @@ void OpenClothPBDNode::InitializeOpenCloth()
 			else {
 				actuatorIndex[i + j * numActuatorX] = getIndex(2 * x + unitGridX, 2 * y + unitGridY);//cloth grid index of Layer2 actuator
 			}
-			radiusArr[i + j * numActuatorX] = 1.f;//20171104
+			radiusArr[i + j * numActuatorX] = radius;//20171104
 		}
 	}
 
@@ -1018,7 +1013,7 @@ void OpenClothPBDNode::EllipsoidCollision() {
 	
 }
 
-void OpenClothPBDNode::EllipsoidMove(){
+void OpenClothPBDNode::EllipsoidMove(){ //move along with the position constraints
 	/* 20170921 */
 	
 	
@@ -1060,7 +1055,7 @@ void OpenClothPBDNode::UpdatePositionConstraint() {
 
 void OpenClothPBDNode::UpdateExternalConstraints() {
 	
-	CalEllipsoidRadius();
+	//CalEllipsoidRadius();
 
 	EllipsoidMove();
 

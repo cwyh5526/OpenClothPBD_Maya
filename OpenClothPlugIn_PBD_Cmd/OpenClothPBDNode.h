@@ -181,6 +181,9 @@ public:
 	//strain configuration
 	static MObject colorDim;
 
+	//radius configuration
+	static MObject ellipRadius; //20171127
+
 	/*node type*/
 	static MTypeId	id; //unique identifier used by create() to identify which node to create
 
