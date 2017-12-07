@@ -129,7 +129,9 @@ double heightArray[420] = //  1    2    3    4     5     6     7     8     9    
 MObject OpenClothPBDNode::time;
 MObject OpenClothPBDNode::inputMesh;
 MObject OpenClothPBDNode::outputMesh;
+
 MTypeId OpenClothPBDNode::id(0x80001);
+
 
 MObject OpenClothPBDNode::height; 	//2017.07.19
 MObject OpenClothPBDNode::width;
@@ -137,6 +139,7 @@ MObject OpenClothPBDNode::subWidth;
 MObject OpenClothPBDNode::subHeight;
 MObject OpenClothPBDNode::colorDim;//color
 MObject OpenClothPBDNode::ellipRadius; //20171127
+MObject OpenClothPBDNode::actuatorPosition;//20171205
 
 MFloatPointArray  OpenClothPBDNode::iarr;
 
@@ -176,6 +179,8 @@ MStatus OpenClothPBDNode::initialize()
 	if (!stat)
 		return stat;
 
+	//20171205
+	actuatorPosition = typedAttr.create("actuatorPosition", "ap", MFnData::kVectorArray,&stat);
 	if (!stat)
 		return stat;
 
@@ -188,10 +193,12 @@ MStatus OpenClothPBDNode::initialize()
 	subHeight = nAttr.create("subHeight", "sh", MFnNumericData::kInt, 0);
 	colorDim = nAttr.create("colorDimension", "cd", MFnNumericData::kInt, 0);//color
 	ellipRadius = nAttr.create("ellipsoidRadius", "r", MFnNumericData::kFloat, 1.0);
+	
 
 	addAttribute(time);
 	addAttribute(inputMesh);
 	addAttribute(outputMesh);
+	addAttribute(actuatorPosition);//20171205
 
 	addAttribute(width);//2017.07.19
 	addAttribute(height);//2017.07.19
@@ -200,6 +207,7 @@ MStatus OpenClothPBDNode::initialize()
 	addAttribute(colorDim);//color
 	addAttribute(ellipRadius);//20171127
 
+	/*Cloth output*/
 	attributeAffects(inputMesh, outputMesh);
 	attributeAffects(time, outputMesh);
 
@@ -210,6 +218,18 @@ MStatus OpenClothPBDNode::initialize()
 
 	attributeAffects(colorDim, outputMesh);//2017.07.19
 	attributeAffects(ellipRadius, outputMesh);//20171127
+
+	//20171205
+	attributeAffects(inputMesh, actuatorPosition);
+	attributeAffects(time, actuatorPosition);
+
+	attributeAffects(width, actuatorPosition);
+	attributeAffects(height, actuatorPosition);
+	attributeAffects(subWidth, actuatorPosition);
+	attributeAffects(subHeight, actuatorPosition);
+
+	attributeAffects(colorDim, actuatorPosition);
+	attributeAffects(ellipRadius, actuatorPosition);
 
 	return MS::kSuccess;
 }
@@ -246,6 +266,12 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 		MDataHandle radHnd = data.inputValue(ellipRadius, &returnStatus);//20171127
 		McheckErr(returnStatus, "Error getting ellipRadius data handle\n");//20171127
 
+		MDataHandle actHnd = data.outputValue(actuatorPosition, &returnStatus);//20171127
+		McheckErr(returnStatus, "Error getting ellipRadius data handle\n");//20171127
+
+	
+
+
 		//keep previous values to determine needs of re-initialization
 		prevNumX = numX;//20170724
 		prevNumY = numY;//20170724
@@ -278,7 +304,7 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 				//second data handle
 				MDataHandle clothHandle = data.outputValue(outputMesh, &returnStatus);
 				if (!returnStatus) return returnStatus;
-
+				
 				//create data obj to pass through the dependency graph and not a DAG object.
 				MFnMeshData dataCreator;
 				MObject newClothDataWraaper = dataCreator.create(&returnStatus);
@@ -293,6 +319,25 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 
 				returnStatus = data.setClean(plug);
 				if (!returnStatus) return returnStatus;
+
+				//20171205
+				MFnVectorArrayData actArrayData;
+				MObject actDataObj = data.inputValue(actuatorPosition).data();
+				actArrayData.setObject(actDataObj);
+
+				//if (actArrayData.length() != (numActuatorX*numActuatorY))
+				//{
+					MVectorArray actArray(numActuatorX*numActuatorY);
+					for (int i = 0; i < numEllip; i++){
+						actArray[i].x = X[actuatorIndex[i]].x;
+						actArray[i].y = X[actuatorIndex[i]].y;
+						actArray[i].z = X[actuatorIndex[i]].z;
+					}
+					actDataObj = actArrayData.create(actArray);
+
+					data.outputValue(actuatorPosition).set(actDataObj);
+				//}
+
 			}
 		}
 		data.setClean(plug);

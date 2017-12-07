@@ -13,6 +13,7 @@
 #include <maya/MTime.h>
 #include <maya/MFnMesh.h>
 #include <maya/MPoint.h>
+
 #include <maya/MFloatPoint.h>
 #include <maya/MFloatPointArray.h>
 #include <maya/MFloatArray.h>
@@ -30,6 +31,7 @@
 #include <maya/MFnMesh.h>
 
 #include <maya/MFnMeshData.h>
+#include <maya/MFnVectorArrayData.h>//20171205
 
 #include <maya/MIOStream.h>
 #include <maya/MFnNObjectData.h>
@@ -158,6 +160,148 @@ button -label "actuator" -command "actuator";
 button -label "nodal"  -command "nodal";
 showWindow;
 */
+
+/* 얘는 actuator들 만들고 위치, radius 연결하는 그것
+int $j=0;
+int $actnum=0;
+string $groupStr="group -n Actuator";
+for($j=1;$j<=420;$j=$j+1){
+
+$actnum=$j-1;
+polySphere -r 1 -sx 20 -sy 20 -ax 0 1 0 -cuv 2 -ch 1;
+string $str ="float $radius=`getAttr OpenClothPBDNode1.ellipsoidRadius`; vector $actPos2[]=`getAttr OpenClothPBDNode1.actuatorPosition`;\nvector $position =$actPos2["+$actnum+"];\npSphere"+$j+".translateX=$position.x-$radius;\npSphere"+$j+".translateY=$position.y;\npSphere"+$j+".translateZ=$position.z;\n\n";
+expression -string $str;
+string $con = "OpenClothPBDNode1.ellipsoidRadius polySphere"+$j+".radius;";
+eval("connectAttr "+ $con);
+$groupStr=$groupStr+" pSphere"+$j;
+}
+
+eval($groupStr+";");
+setAttr "lambert1.transparency" -type double3 0.6 0.6 0.6 ;
+
+*/
+/* 이것은 UI
+string $windowName = "ChamelUI";
+if (`window -exists $windowName`) deleteUI $windowName;
+
+window  -title "Chameleon Surface Skin Simulator"
+-resizeToFitChildren true $windowName;
+
+columnLayout ;
+text -label " " -align "right";//just for padding
+string $sourceLayers[] = {"Wire Frame","Shading","Actuator Strain","Nodal Strain","Texture"};
+rowColumnLayout -numberOfColumns 2 -columnWidth 1 143 -columnWidth 2 200;
+text -label "Viewing Mode: " -align "right";
+optionMenu -label "" -changeCommand "optionVar -sv \"cml_source\" \"#1\"" SourceLayerSelection;//"optionVar -sv \"view_mode\" \"#1\"";
+for($s in $sourceLayers)
+menuItem -l $s;
+setParent ..;
+attrFieldSliderGrp -label "Width: "
+-attribute ("polyPlane1.width")
+-fieldMinValue 35.34 -fieldMaxValue 100 -precision 2
+-minValue 0 -maxValue 100 ;
+attrFieldSliderGrp -label "Height: "
+-attribute ("polyPlane1.height")
+-fieldMinValue 18 -fieldMaxValue 100 -precision 2
+-minValue 18 -maxValue 100;
+attrFieldSliderGrp -label "Subdivisions Width: "
+-attribute ("polyPlane1.subdivisionsWidth")
+-fieldMinValue 56 -fieldMaxValue 300
+-minValue 56 -maxValue 300 ;
+attrFieldSliderGrp -label "Subdivisions Height: "
+-attribute ("polyPlane1.subdivisionsHeight")
+-fieldMinValue 15 -fieldMaxValue 300
+-minValue 15 -maxValue 300 ;
+attrFieldSliderGrp -label "Actuator Radius: "
+-attribute ("OpenClothPBDNode1.ellipsoidRadius")
+-fieldMinValue 0.01 -fieldMaxValue 10
+-minValue 0.01 -maxValue 10 ;
+rowColumnLayout -numberOfColumns 5 -columnWidth 1 143 -columnWidth 2 10 -columnWidth 3 50 -columnWidth 4 50;
+text -label "Actuator Rendering: " -align "right";
+text -label "  " -align "right";
+
+radioCollection actRender;
+radioButton -label "On" -onCommand actuatorOnCmd ;
+radioButton -label "Off" -select -onCommand actuatorOffCmd ;
+radioButton -label "Delete" -select -onCommand deleteActuatorCmd ;
+setParent ..;
+
+
+text -label " " -align "right";//just for padding
+gridLayout -cellWidthHeight 130 25 -numberOfRowsColumns 1 3;
+text -label " ";
+button -label "Change" -align "center" -width 133 -height 10  -command buttonCmd;
+text -label " ";
+setParent ..;
+
+text -label " " -align "right";//just for padding
+
+showWindow;
+
+global proc buttonCmd() {
+string $matteLayer = `optionMenu -q -v SourceLayerSelection`;
+string $window = `getPanel -withFocus`;//example modelPanel1
+modelEditor -e -wos 0 $window;
+switch($matteLayer){
+case "Wire Frame" :
+if( `modelEditor -q -wos $window` == 0 ){
+modelEditor -e -wos 1 $window;
+}
+break;
+case "Shading" :
+
+setAttr OpenClothPBDNode1.colorDimension 0;
+break;
+case "Actuator Strain" :
+setAttr OpenClothPBDNode1.colorDimension 1;
+break;
+case "Nodal Strain" :
+setAttr OpenClothPBDNode1.colorDimension 2;
+break;
+case "Texture" :
+
+modelEditor  -e -tx true $window;
+
+
+break;
+}
+}
+
+global proc actuatorOnCmd() {
+if(!(`objExists Actuator`)){
+int $j=0;
+int $actnum=0;
+string $groupStr="group -n Actuator";
+for($j=1;$j<=420;$j=$j+1){
+$actnum=$j-1;
+polySphere -r 1 -sx 20 -sy 20 -ax 0 1 0 -cuv 2 -ch 1;
+string $str ="float $radius=`getAttr OpenClothPBDNode1.ellipsoidRadius`; vector $actPos2[]=`getAttr OpenClothPBDNode1.actuatorPosition`;\nvector $position =$actPos2["+$actnum+"];\npSphere"+$j+".translateX=$position.x-$radius;\npSphere"+$j+".translateY=$position.y;\npSphere"+$j+".translateZ=$position.z;\n\n";
+expression -string $str;
+string $con = "OpenClothPBDNode1.ellipsoidRadius polySphere"+$j+".radius;";
+eval("connectAttr "+ $con);
+$groupStr=$groupStr+" pSphere"+$j;
+}
+eval($groupStr+";");
+select -cl;
+}
+select -r Actuator;
+ShowSelectedObjects;
+select -cl;
+setAttr "lambert1.transparency" -type double3 0.6 0.6 0.6 ;
+}
+global proc actuatorOffCmd() {
+select -r Actuator;
+HideSelectedObjects;
+setAttr "lambert1.transparency" -type double3 0.0 0.0 0.0 ;
+}
+
+global proc deleteActuatorCmd() {
+delete Actuator;
+
+}
+
+
+*/
 class OpenClothPBDNode : public MPxNode
 {
 public:
@@ -167,11 +311,11 @@ public:
 	static  void*	creator();		//allows Maya to instantialte instances of this node
 	static  MStatus initialize();	//define the I/O of node. called once immediately after a plug-in is loaded
 
+
 	/*node attributes*/
 	static MObject	time;
 	static MObject  inputMesh;
 	static MObject	outputMesh;
-
 
 	static MObject height; 	//2017.07.19
 	static MObject width;
@@ -183,6 +327,7 @@ public:
 
 	//radius configuration
 	static MObject ellipRadius; //20171127
+	static MObject actuatorPosition;//20171205
 
 	/*node type*/
 	static MTypeId	id; //unique identifier used by create() to identify which node to create

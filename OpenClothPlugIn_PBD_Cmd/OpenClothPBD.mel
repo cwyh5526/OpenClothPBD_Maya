@@ -1,0 +1,23 @@
+string $pPlane1[] = `polyPlane -w 35.34 -h 18 -sx 224 -sy 120 -ax 1 0 0 -cuv 2 -ch 1`;
+string $pPlane2[] = `polyPlane -w 35.34 -h 18 -sx 224 -sy 120 -ax 1 0 0 -cuv 2 -ch 1`;
+select -r polyPlane2 ;
+doDelete;
+
+createNode OpenClothPBDNode;
+connectAttr polyPlane1.height OpenClothPBDNode1.height;
+connectAttr polyPlane1.width OpenClothPBDNode1.width;
+connectAttr polyPlane1.subdivisionsHeight OpenClothPBDNode1.subHeight;
+connectAttr polyPlane1.subdivisionsWidth OpenClothPBDNode1.subWidth;
+
+connectAttr time1.outTime OpenClothPBDNode1.time;
+connectAttr pPlaneShape1.worldMesh[0] OpenClothPBDNode1.inputMesh;
+//delete pPlane1;
+
+connectAttr OpenClothPBDNode1.outputMesh pPlaneShape2.inMesh;
+select -r pPlane1;
+toggleVisibilityAndKeepSelection `optionVar -query toggleVisibilityAndKeepSelectionBehaviour`;
+
+select -r pPlane2;
+setAttr OpenClothPBDNode1.colorDimension 1;
+toggleShadeMode();
+select -cl;
