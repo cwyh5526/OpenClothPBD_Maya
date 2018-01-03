@@ -1,4 +1,7 @@
 #include "OpenClothPBDNode.h"
+#include <fstream> //jisu 20180102
+#include <iostream>
+#include <sstream>
 
 #define USE_TRIANGLE_BENDING_CONSTRAINT
 #define PI 3.1415926536f
@@ -126,6 +129,16 @@ double heightArray[420] = //  1    2    3    4     5     6     7     8     9    
 	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  //15
 };
 
+/*For Animation 20180102*/
+std::vector<double> actuatorHeightData; //contains all actuator's height data of all frame
+int numFrame; //how many frames for animations
+int prevFrameNumber=0;
+int currentFrameNumber=0;
+
+void getHeightDataFromFile(std::string fileName);
+int getHeightIndex(int frame, int actuator);
+
+
 MObject OpenClothPBDNode::time;
 MObject OpenClothPBDNode::inputMesh;
 MObject OpenClothPBDNode::outputMesh;
@@ -144,6 +157,7 @@ MObject OpenClothPBDNode::actuatorPosition;//20171205
 MFloatPointArray  OpenClothPBDNode::iarr;
 
 MStatus returnStatus;
+
 
 #define McheckErr(stat,msg)			\
 	if ( MS::kSuccess != stat ) {	\
@@ -723,6 +737,16 @@ void OpenClothPBDNode::InitializeOpenCloth()
 	//inverse_ellipsoid = glm::inverse(ellipsoid);
 
 
+	std::string fileName = "C:\\Users\\cwyh5\\Desktop\\height_data.txt";
+	getHeightDataFromFile(fileName);
+	prevFrameNumber = 0;
+	currentFrameNumber = 0;	
+	MGlobal::displayInfo("FILE READ INITIALIZED");
+	/*for (int j = 0; j < numFrame; j++){
+		for (int i = 0; i < 420; i++){
+			MGlobal::displayInfo(MString() + actuatorHeightData[j*420+i] + " ");
+		}
+	}*/
 
 }
 void OpenClothPBDNode::StepPhysics(float dt){
@@ -1084,7 +1108,42 @@ void OpenClothPBDNode::EllipsoidMove(){ //move along with the position constrain
 }
 void OpenClothPBDNode::UpdatePositionConstraint() {
 
+	double speedRatio=1/50;
+	int count = 0;
+
 	for (int i = 0; i < numActuatorX*numActuatorY; i++) {
+		int currentHeightIndex = getHeightIndex(currentFrameNumber, i);
+		int prevHeightIndex = getHeightIndex(prevFrameNumber,i);
+
+		if ((tmp_X[actuatorIndex[i]].x >= actuatorHeightData[currentHeightIndex] - 0.01f) &&
+			(tmp_X[actuatorIndex[i]].x <= actuatorHeightData[currentHeightIndex] + 0.01f)) //if actuator is in the boundary, set the position of actuator 
+		{
+			tmp_X[actuatorIndex[i]].x = actuatorHeightData[currentHeightIndex];
+			W[actuatorIndex[i]] = 0.0;
+			count++;
+			if( (count>= 419)){ //when all actuator is in the boundary, set nextFrame?
+				prevFrameNumber = currentFrameNumber;
+				currentFrameNumber = (currentFrameNumber + 1) % numFrame;
+				count = 0;
+			}
+		}
+		else{
+			double movement;
+			if (currentFrameNumber == 0 && prevFrameNumber == 0)
+			{
+				movement = actuatorHeightData[currentHeightIndex];
+			}else{
+				movement = actuatorHeightData[currentHeightIndex] - actuatorHeightData[prevHeightIndex];
+			}
+			
+			tmp_X[actuatorIndex[i]].x += movement/50;
+			W[actuatorIndex[i]] = 0.0;
+
+		}
+
+	}
+	
+	/*for (int i = 0; i < numActuatorX*numActuatorY; i++) {
 
 		if (tmp_X[actuatorIndex[i]].x >= heightArray[i]) {
 			tmp_X[actuatorIndex[i]].x = heightArray[i];
@@ -1095,7 +1154,7 @@ void OpenClothPBDNode::UpdatePositionConstraint() {
 			W[actuatorIndex[i]] = 0.0;
 		}
 
-	}
+	}*/
 }
 
 void OpenClothPBDNode::UpdateExternalConstraints() {
@@ -1272,4 +1331,50 @@ void OpenClothPBDNode::CalEllipsoidRadius(){
 
 
 
+}
+
+
+void getHeightDataFromFile(std::string fileName){
+	std::ifstream file(fileName);
+	std::string line;
+	int i=0;
+	MString test; 
+	//read file and get the height data
+	if (file.is_open()){
+		MGlobal::displayInfo("FILE IS OPEN");
+		getline(file, line);
+		numFrame = atoi(line.c_str());//get the number of Frame
+		actuatorHeightData.resize(420 *( numFrame));
+
+		while (getline(file, line)){
+			std::stringstream linestream(line);
+			std::string item;
+			test = MString() +i+" ";
+			while (getline(linestream, item, ' ')){
+				actuatorHeightData[i] = atof(item.c_str());
+				test += MString() + actuatorHeightData[i] + " " ;
+				i++;
+			}
+			MGlobal::displayInfo(test);
+		}
+
+	}
+	else{
+		MGlobal::displayError("Cannot Open Actuator Height Input File\n");
+		//ERROR: File Not Found
+	}
+
+	MGlobal::displayInfo("FILE READ DONE==================");
+	test = "";
+	for (int j = 0; j < 420; j++){
+		
+		//for (int i = 0; i < 420; i++){
+			test += (MString() + actuatorHeightData[j] + " ");
+		//}
+	}
+	MGlobal::displayInfo(test);
+}
+
+int getHeightIndex(int frame, int actuator){
+	return frame * 420 + actuator;
 }
