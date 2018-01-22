@@ -226,6 +226,12 @@ radioButton -label "Off" -select -onCommand actuatorOffCmd ;
 radioButton -label "Delete" -select -onCommand deleteActuatorCmd ;
 setParent ..;
 
+string $filepath = `getAttr "OpenClothPBDNode1.heightFilePath"`;
+rowColumnLayout -numberOfColumns 5 -columnWidth 1 143 -columnWidth 2 150 -columnWidth 4 75;
+text -label "Height File Path: " -align "right";
+textField -w 150 -tx $filepath heightfilepath;
+button -label "Browse" -align "center" -width 75 -height 10 -command browseBtnCmd;
+setParent ..;
 
 text -label " " -align "right";//just for padding
 gridLayout -cellWidthHeight 130 25 -numberOfRowsColumns 1 3;
@@ -287,7 +293,7 @@ select -cl;
 select -r Actuator;
 ShowSelectedObjects;
 select -cl;
-setAttr "lambert1.transparency" -type double3 0.6 0.6 0.6 ;
+setAttr "lambert1.transparency" -type double3 0.3 0.3 0.3 ;
 }
 global proc actuatorOffCmd() {
 select -r Actuator;
@@ -300,6 +306,14 @@ delete Actuator;
 
 }
 
+global proc browseBtnCmd(){
+fileBrowser("onFileOpen","Open","",0);
+}
+global proc int onFileOpen(string $filepath, string $type){
+setAttr "OpenClothPBDNode1.heightFilePath" -type "string" $filepath;
+textField -edit -tx $filepath heightfilepath;
+return true;
+}
 
 */
 class OpenClothPBDNode : public MPxNode
@@ -328,6 +342,8 @@ public:
 	//radius configuration
 	static MObject ellipRadius; //20171127
 	static MObject actuatorPosition;//20171205
+	static MObject heightFilePath;//20180122
+
 
 	/*node type*/
 	static MTypeId	id; //unique identifier used by create() to identify which node to create

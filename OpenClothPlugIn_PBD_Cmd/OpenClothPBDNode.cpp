@@ -135,6 +135,13 @@ int numFrame; //how many frames for animations
 int prevFrameNumber=0;
 int currentFrameNumber=0;
 
+std::string defaultFilePath = "C:\\Users\\cwyh5\\Desktop\\height_data.txt";
+std::string heightInputFilePath = "";
+std::string prevFilePath = "";
+
+
+
+
 void getHeightDataFromFile(std::string fileName);
 int getHeightIndex(int frame, int actuator);
 
@@ -153,6 +160,7 @@ MObject OpenClothPBDNode::subHeight;
 MObject OpenClothPBDNode::colorDim;//color
 MObject OpenClothPBDNode::ellipRadius; //20171127
 MObject OpenClothPBDNode::actuatorPosition;//20171205
+MObject OpenClothPBDNode::heightFilePath;//20180122
 
 MFloatPointArray  OpenClothPBDNode::iarr;
 
@@ -198,6 +206,11 @@ MStatus OpenClothPBDNode::initialize()
 	if (!stat)
 		return stat;
 
+	//20180122
+	heightFilePath = typedAttr.create("heightFilePath", "hfp", MFnData::kString, &stat);
+	if (!stat)
+		return stat;
+
 	typedAttr.setStorable(false);
 
 	//2017.07.19
@@ -208,6 +221,7 @@ MStatus OpenClothPBDNode::initialize()
 	colorDim = nAttr.create("colorDimension", "cd", MFnNumericData::kInt, 0);//color
 	ellipRadius = nAttr.create("ellipsoidRadius", "r", MFnNumericData::kFloat, 1.0);
 	
+
 
 	addAttribute(time);
 	addAttribute(inputMesh);
@@ -221,6 +235,8 @@ MStatus OpenClothPBDNode::initialize()
 	addAttribute(colorDim);//color
 	addAttribute(ellipRadius);//20171127
 
+	addAttribute(heightFilePath);//20180122
+
 	/*Cloth output*/
 	attributeAffects(inputMesh, outputMesh);
 	attributeAffects(time, outputMesh);
@@ -233,6 +249,8 @@ MStatus OpenClothPBDNode::initialize()
 	attributeAffects(colorDim, outputMesh);//2017.07.19
 	attributeAffects(ellipRadius, outputMesh);//20171127
 
+	attributeAffects(heightFilePath, outputMesh);//20180122
+
 	//20171205
 	attributeAffects(inputMesh, actuatorPosition);
 	attributeAffects(time, actuatorPosition);
@@ -244,6 +262,7 @@ MStatus OpenClothPBDNode::initialize()
 
 	attributeAffects(colorDim, actuatorPosition);
 	attributeAffects(ellipRadius, actuatorPosition);
+	attributeAffects(heightFilePath, actuatorPosition);//20180122
 
 	return MS::kSuccess;
 }
@@ -283,8 +302,9 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 		MDataHandle actHnd = data.outputValue(actuatorPosition, &returnStatus);//20171127
 		McheckErr(returnStatus, "Error getting ellipRadius data handle\n");//20171127
 
-	
-
+		MDataHandle hfpHnd = data.inputValue(heightFilePath, &returnStatus);//20180122
+		McheckErr(returnStatus, "Error getting height file path data handle\n");//20180122
+		
 
 		//keep previous values to determine needs of re-initialization
 		prevNumX = numX;//20170724
@@ -302,6 +322,22 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 		cd = cdHnd.asInt();
 
 		radius = radHnd.asFloat();//20171127
+
+		prevFilePath = heightInputFilePath;
+		
+		//20180122
+		if (hfpHnd.asString() == "")
+		{
+			heightInputFilePath = defaultFilePath;
+			hfpHnd.setString(defaultFilePath.c_str());
+			MGlobal::displayInfo(heightInputFilePath.c_str());
+		}
+		else{
+			heightInputFilePath = hfpHnd.asString().asChar();
+			MGlobal::displayInfo(heightInputFilePath.c_str());
+		}
+		
+		
 
 		/* Get input*/
 		MDataHandle inputData = data.inputValue(inputMesh, &returnStatus);
@@ -389,7 +425,8 @@ MObject OpenClothPBDNode::createCloth(const MTime& time, MObject& inData, MObjec
 	if (time.value() == 1){
 		first = true;
 	}
-	if (prevNumX != numX || prevNumY != numY || prevcolorDim != cd || prevRadius !=radius) //20171127
+	if (prevNumX != numX || prevNumY != numY || prevcolorDim != cd 
+		|| prevRadius !=radius || prevFilePath!=heightInputFilePath) //20170122
 	{
 		first = true;
 	}
@@ -737,8 +774,8 @@ void OpenClothPBDNode::InitializeOpenCloth()
 	//inverse_ellipsoid = glm::inverse(ellipsoid);
 
 
-	std::string fileName = "C:\\Users\\cwyh5\\Desktop\\height_data.txt";
-	getHeightDataFromFile(fileName);
+	
+	getHeightDataFromFile(heightInputFilePath); //20180122
 	prevFrameNumber = 0;
 	currentFrameNumber = 0;	
 	MGlobal::displayInfo("FILE READ INITIALIZED");
