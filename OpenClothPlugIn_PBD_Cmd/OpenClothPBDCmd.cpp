@@ -12,7 +12,7 @@
 #include <maya/MAnimControl.h>
 #include <assert.h>
 
-MStatus OpenClothPBDCmd::doIt(const MArgList &args)
+MStatus SimCmd::doIt(const MArgList &args)
 {
 	//MGlobal::displayInfo("######OpenClothPBDCmd doIt()");
 	MStatus stat;
@@ -50,21 +50,21 @@ MStatus OpenClothPBDCmd::doIt(const MArgList &args)
 		MPlug srcSubHeightPlug = polyPlaneFn.findPlug("subdivisionsHeight");
 		MPlug srcSubWidthPlug = polyPlaneFn.findPlug("subdivisionsWidth");
 
-		// Create new OpenClothPBDNode node
-		MObject OpenClothPBDNode = dgMod.createNode(OpenClothPBDNode::id);
-		assert(!OpenClothPBDNode.isNull());
-		MFnDependencyNode OpenClothPBDFn(OpenClothPBDNode);
+		// Create new Sim node
+		MObject SimNode = dgMod.createNode(SimNode::id);
+		assert(!SimNode.isNull());
+		MFnDependencyNode SimFn(SimNode);
 
 	
 		//MPlug timePlug = OpenClothPBDFn.findPlug("time");
 
-		MPlug outputMeshPlug = OpenClothPBDFn.findPlug("outputMesh");
-		MPlug inputMeshPlug = OpenClothPBDFn.findPlug("inputMesh");
+		MPlug outputMeshPlug = SimFn.findPlug("outputMesh");
+		MPlug inputMeshPlug = SimFn.findPlug("inputMesh");
 
-		MPlug heightPlug = OpenClothPBDFn.findPlug("height");
-		MPlug widthPlug = OpenClothPBDFn.findPlug("width");
-		MPlug subHeightPlug = OpenClothPBDFn.findPlug("subHeight");
-		MPlug subWidthPlug = OpenClothPBDFn.findPlug("subWidth");
+		MPlug heightPlug = SimFn.findPlug("height");
+		MPlug widthPlug = SimFn.findPlug("width");
+		MPlug subHeightPlug = SimFn.findPlug("subHeight");
+		MPlug subWidthPlug = SimFn.findPlug("subWidth");
 
 		// Make the connections			
 		dgMod.connect(srcHeightPlug, heightPlug);
@@ -81,8 +81,8 @@ MStatus OpenClothPBDCmd::doIt(const MArgList &args)
 
 		static int i = 1;
 		
-		MString name = MString("openClothPBDNode") + i++;
-		dgMod.renameNode(OpenClothPBDNode, name);
+		MString name = MString("simNode") + i++;
+		dgMod.renameNode(SimNode, name);
 
 		MString cmd;
 		cmd = MString("connectAttr time1.outTime " + name + ".time");
@@ -143,12 +143,12 @@ MStatus OpenClothPBDCmd::doIt(const MArgList &args)
 	return redoIt();
 }
 
-MStatus OpenClothPBDCmd::undoIt()
+MStatus SimCmd::undoIt()
 {
 	return dgMod.undoIt();
 }
 
-MStatus OpenClothPBDCmd::redoIt()
+MStatus SimCmd::redoIt()
 {
 	return dgMod.doIt();
 }

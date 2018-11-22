@@ -7,7 +7,7 @@
 #define PI 3.1415926536f
 #define EPSILON  0.0000001f
 
-struct DistanceConstraint { int p1, p2;	float rest_length, k; float k_prime; };
+struct DistanceConstraint { int p1, p2;	float rest_length, k; float k_prime; bool positive_movement; };
 #ifdef USE_TRIANGLE_BENDING_CONSTRAINT
 struct BendingConstraint { int p1, p2, p3;	float rest_length, w, k; float k_prime; };
 #else
@@ -17,7 +17,7 @@ struct BendingConstraint { int p1, p2, p3, p4;	float rest_length1, rest_length2,
 //previous values uesd to determine re-initializeation
 static int prevNumX = 0, prevNumY = 0;
 int prevcolorDim = 0;//color
-float prevRadius=1.0f;
+float prevRadius = 1.0f;
 
 static int cd;//color
 static int numX = 0, numY = 0;
@@ -88,7 +88,7 @@ int iSlices = 30;
 float fRadius = 0.5f;
 // Resolve constraint in object space
 glm::vec3 center = glm::vec3(0, 0, 0); //object space center of ellipsoid
-float radius =1.0f;
+float radius = 1.0f;
 float radiusArr[420] = { 1.0f, };
 float curvature[420] = { 2.0f, };
 float heightDistance[420] = { 0.f, };
@@ -132,10 +132,10 @@ double heightArray[420] = //  1    2    3    4     5     6     7     8     9    
 /*For Animation 20180102*/
 std::vector<double> actuatorHeightData; //contains all actuator's height data of all frame
 int numFrame; //how many frames for animations
-int prevFrameNumber=0;
-int currentFrameNumber=0;
+int prevFrameNumber = 0;
+int currentFrameNumber = 0;
 
-std::string defaultFilePath = "C:\\Users\\cwyh5\\Desktop\\height_data.txt";
+std::string defaultFilePath = "C:\\Users\\cwyh5\\Desktop\\KITECH_1003\\Maya_Animation\\Maya_Animation\\OpenClothPlugIn_PBD_Cmd\\height_data.txt";
 std::string heightInputFilePath = "";
 std::string prevFilePath = "";
 
@@ -146,23 +146,20 @@ void getHeightDataFromFile(std::string fileName);
 int getHeightIndex(int frame, int actuator);
 
 
-MObject OpenClothPBDNode::time;
-MObject OpenClothPBDNode::inputMesh;
-MObject OpenClothPBDNode::outputMesh;
+MObject SimNode::time;
+MObject SimNode::inputMesh;
+MObject SimNode::outputMesh;
+MTypeId SimNode::id(0x80001);
+MObject SimNode::height; 	//2017.07.19
+MObject SimNode::width;
+MObject SimNode::subWidth;
+MObject SimNode::subHeight;
+MObject SimNode::colorDim;//color
+MObject SimNode::ellipRadius; //20171127
+MObject SimNode::actuatorPosition;//20171205
+MObject SimNode::heightFilePath;//20180122
 
-MTypeId OpenClothPBDNode::id(0x80001);
-
-
-MObject OpenClothPBDNode::height; 	//2017.07.19
-MObject OpenClothPBDNode::width;
-MObject OpenClothPBDNode::subWidth;
-MObject OpenClothPBDNode::subHeight;
-MObject OpenClothPBDNode::colorDim;//color
-MObject OpenClothPBDNode::ellipRadius; //20171127
-MObject OpenClothPBDNode::actuatorPosition;//20171205
-MObject OpenClothPBDNode::heightFilePath;//20180122
-
-MFloatPointArray  OpenClothPBDNode::iarr;
+MFloatPointArray  SimNode::iarr;
 
 MStatus returnStatus;
 
@@ -171,15 +168,15 @@ MStatus returnStatus;
 	if ( MS::kSuccess != stat ) {	\
 		cerr << msg;				\
 		return MS::kFailure;		\
-									}
+										}
 //using namespace std;
 
-void* OpenClothPBDNode::creator()
+void* SimNode::creator()
 {
-	return new OpenClothPBDNode;
+	return new SimNode;
 }
 
-MStatus OpenClothPBDNode::initialize()
+MStatus SimNode::initialize()
 {
 	//define  the attributes of node (input/output)
 	MStatus stat;
@@ -202,7 +199,7 @@ MStatus OpenClothPBDNode::initialize()
 		return stat;
 
 	//20171205
-	actuatorPosition = typedAttr.create("actuatorPosition", "ap", MFnData::kVectorArray,&stat);
+	actuatorPosition = typedAttr.create("actuatorPosition", "ap", MFnData::kVectorArray, &stat);
 	if (!stat)
 		return stat;
 
@@ -218,9 +215,9 @@ MStatus OpenClothPBDNode::initialize()
 	height = nAttr.create("height", "h", MFnNumericData::kDouble, 0.0);
 	subWidth = nAttr.create("subWidth", "sw", MFnNumericData::kInt, 0);
 	subHeight = nAttr.create("subHeight", "sh", MFnNumericData::kInt, 0);
-	colorDim = nAttr.create("colorDimension", "cd", MFnNumericData::kInt, 0);//color
+	colorDim = nAttr.create("colorDimension", "cd", MFnNumericData::kInt, 2);//color
 	ellipRadius = nAttr.create("ellipsoidRadius", "r", MFnNumericData::kFloat, 1.0);
-	
+
 
 
 	addAttribute(time);
@@ -267,13 +264,13 @@ MStatus OpenClothPBDNode::initialize()
 	return MS::kSuccess;
 }
 
-MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
+MStatus SimNode::compute(const MPlug& plug, MDataBlock& data)
 
 {
 	MStatus returnStatus;
 	if (plug == outputMesh)
 	{
-		MGlobal::displayInfo("######OpenClothPBDNode compute()");
+		//MGlobal::displayInfo("######OpenClothPBDNode compute()");
 		/* Get time */
 		MDataHandle timeData = data.inputValue(time, &returnStatus);
 		McheckErr(returnStatus, "Error getting time data handle\n");
@@ -304,7 +301,7 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 
 		MDataHandle hfpHnd = data.inputValue(heightFilePath, &returnStatus);//20180122
 		McheckErr(returnStatus, "Error getting height file path data handle\n");//20180122
-		
+
 
 		//keep previous values to determine needs of re-initialization
 		prevNumX = numX;//20170724
@@ -324,20 +321,20 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 		radius = radHnd.asFloat();//20171127
 
 		prevFilePath = heightInputFilePath;
-		
+
 		//20180122
 		if (hfpHnd.asString() == "")
 		{
 			heightInputFilePath = defaultFilePath;
 			hfpHnd.setString(defaultFilePath.c_str());
-			MGlobal::displayInfo(heightInputFilePath.c_str());
+			//MGlobal::displayInfo(heightInputFilePath.c_str());
 		}
 		else{
 			heightInputFilePath = hfpHnd.asString().asChar();
-			MGlobal::displayInfo(heightInputFilePath.c_str());
+			//MGlobal::displayInfo(heightInputFilePath.c_str());
 		}
-		
-		
+
+
 
 		/* Get input*/
 		MDataHandle inputData = data.inputValue(inputMesh, &returnStatus);
@@ -354,7 +351,7 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 				//second data handle
 				MDataHandle clothHandle = data.outputValue(outputMesh, &returnStatus);
 				if (!returnStatus) return returnStatus;
-				
+
 				//create data obj to pass through the dependency graph and not a DAG object.
 				MFnMeshData dataCreator;
 				MObject newClothDataWraaper = dataCreator.create(&returnStatus);
@@ -377,15 +374,15 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 
 				//if (actArrayData.length() != (numActuatorX*numActuatorY))
 				//{
-					MVectorArray actArray(numActuatorX*numActuatorY);
-					for (int i = 0; i < numEllip; i++){
-						actArray[i].x = X[actuatorIndex[i]].x;
-						actArray[i].y = X[actuatorIndex[i]].y;
-						actArray[i].z = X[actuatorIndex[i]].z;
-					}
-					actDataObj = actArrayData.create(actArray);
+				MVectorArray actArray(numActuatorX*numActuatorY);
+				for (int i = 0; i < numEllip; i++){
+					actArray[i].x = X[actuatorIndex[i]].x;
+					actArray[i].y = X[actuatorIndex[i]].y;
+					actArray[i].z = X[actuatorIndex[i]].z;
+				}
+				actDataObj = actArrayData.create(actArray);
 
-					data.outputValue(actuatorPosition).set(actDataObj);
+				data.outputValue(actuatorPosition).set(actDataObj);
 				//}
 
 			}
@@ -401,7 +398,7 @@ MStatus OpenClothPBDNode::compute(const MPlug& plug, MDataBlock& data)
 	return MS::kSuccess;
 }
 
-MObject OpenClothPBDNode::createCloth(const MTime& time, MObject& inData, MObject& outData, MStatus& stat)
+MObject SimNode::createCloth(const MTime& time, MObject& inData, MObject& outData, MStatus& stat)
 {
 	//MGlobal::displayInfo("######OpenClothPBDNode create()");
 	MFnMesh meshFn;
@@ -425,8 +422,8 @@ MObject OpenClothPBDNode::createCloth(const MTime& time, MObject& inData, MObjec
 	if (time.value() == 1){
 		first = true;
 	}
-	if (prevNumX != numX || prevNumY != numY || prevcolorDim != cd 
-		|| prevRadius !=radius || prevFilePath!=heightInputFilePath) //20170122
+	if (prevNumX != numX || prevNumY != numY || prevcolorDim != cd
+		|| prevRadius != radius || prevFilePath != heightInputFilePath) //20170122
 	{
 		first = true;
 	}
@@ -470,9 +467,9 @@ MObject OpenClothPBDNode::createCloth(const MTime& time, MObject& inData, MObjec
 		{
 			for (int i = 0; i<total_points; i++)
 			{
-				double s = (1 - std::min(std::max(Strain[i], 0.f), 1.f)) * 241;
+				double s = tmp_X[i].x*0.5; // (1 - std::min(std::max(Strain[i], 0.f), 1.f)) * 241;
 				//MGlobal::displayInfo(MString("strain = ") + Strain[i]);
-				MColor c(MColor::kHSV, s, 1.0, 1.0, 1.0);
+				MColor c(MColor::kHSV, 0, 0, s, 1.0);
 				colors.append(c);
 				vertexId.append(i);
 
@@ -554,7 +551,7 @@ inline int getIndex(int i, int j) {
 }
 #endif
 
-void OpenClothPBDNode::InitializeOpenCloth()
+void SimNode::InitializeOpenCloth()
 {
 	//Initialize variable and Cosntraints
 	//MGlobal::displayInfo("######OpenClothPBDNode InitializeOpenCloth()");
@@ -680,6 +677,8 @@ void OpenClothPBDNode::InitializeOpenCloth()
 	if (global_dampening>1)
 		global_dampening = 1;
 
+	k = 1.0f - pow((1.0f - kStretch), 1.0f / solver_iterations);
+
 	//setup constraints
 
 
@@ -774,21 +773,19 @@ void OpenClothPBDNode::InitializeOpenCloth()
 	//inverse_ellipsoid = glm::inverse(ellipsoid);
 
 
-	
+
 	getHeightDataFromFile(heightInputFilePath); //20180122
 	prevFrameNumber = 0;
-	currentFrameNumber = 0;	
-	MGlobal::displayInfo("FILE READ INITIALIZED");
+	currentFrameNumber = 0;
+	//MGlobal::displayInfo("FILE READ INITIALIZED");
 	/*for (int j = 0; j < numFrame; j++){
-		for (int i = 0; i < 420; i++){
-			MGlobal::displayInfo(MString() + actuatorHeightData[j*420+i] + " ");
-		}
+	for (int i = 0; i < 420; i++){
+	MGlobal::displayInfo(MString() + actuatorHeightData[j*420+i] + " ");
+	}
 	}*/
 
 }
-void OpenClothPBDNode::StepPhysics(float dt){
-
-	//MGlobal::displayInfo("######OpenClothPBDNode StepPhy()");
+void SimNode::StepPhysics(float dt){
 	ComputeForces();
 	IntegrateExplicitWithDamping(dt);
 
@@ -797,18 +794,9 @@ void OpenClothPBDNode::StepPhysics(float dt){
 	UpdateExternalConstraints();
 
 	Integrate(dt);
-
-	if (cd == 1)
-	{
-		CalActuatorStrain();
-	}
-	else if (cd == 2)
-	{
-		CalNodalStrain();
-	}
 }
 
-void OpenClothPBDNode::ComputeForces() {
+void SimNode::ComputeForces() {
 	size_t i = 0;
 
 	for (i = 0; i<total_points; i++) {
@@ -825,7 +813,7 @@ void OpenClothPBDNode::ComputeForces() {
 	//F[total_points-(total_points/ 4)] += glm::vec3(0, 0, 100.0);//20170911 10의 힘을 z 방향으로 준다
 }
 
-void OpenClothPBDNode::IntegrateExplicitWithDamping(float deltaTime) {
+void SimNode::IntegrateExplicitWithDamping(float deltaTime) {
 	float deltaTimeMass = deltaTime;
 	size_t i = 0;
 
@@ -884,7 +872,7 @@ void OpenClothPBDNode::IntegrateExplicitWithDamping(float deltaTime) {
 	}
 }
 
-void OpenClothPBDNode::Integrate(float deltaTime) {
+void SimNode::Integrate(float deltaTime) {
 	float inv_dt = 1.0f / deltaTime;
 	size_t i = 0;
 
@@ -898,7 +886,7 @@ void OpenClothPBDNode::Integrate(float deltaTime) {
 	}
 }
 
-void OpenClothPBDNode::UpdateDistanceConstraint(int i) {
+void SimNode::UpdateDistanceConstraint(int i) {
 
 	DistanceConstraint c = d_constraints[i];
 	glm::vec3 dir =
@@ -919,7 +907,14 @@ void OpenClothPBDNode::UpdateDistanceConstraint(int i) {
 			if (invMass <= EPSILON)
 				return;
 
-			glm::vec3 dP = (1.0f / invMass) * (len - c.rest_length) * (dir / len)* c.k_prime;
+			//if (avg_Strain > 1.0)
+			//avg_Strain = 1;
+
+			if (c.k > 1.0)
+				c.k = 1;
+
+			glm::vec3 dP = (1.0f / invMass) * (len - c.rest_length) * (dir / len) * c.k;
+
 			if (w1 > 0.0)
 				tmp_X[c.p1] -= dP*w1;
 
@@ -927,7 +922,7 @@ void OpenClothPBDNode::UpdateDistanceConstraint(int i) {
 				tmp_X[c.p2] += dP*w2;
 }
 
-void OpenClothPBDNode::UpdateBendingConstraint(int index) {
+void SimNode::UpdateBendingConstraint(int index) {
 	size_t i = 0;
 	BendingConstraint c = b_constraints[index];
 
@@ -1063,69 +1058,72 @@ void OpenClothPBDNode::UpdateBendingConstraint(int index) {
 #endif
 }
 //----------------------------------------------------------------------------------------------------
-void OpenClothPBDNode::GroundCollision() //DevO: 24.07.2011
+void SimNode::GroundCollision() //DevO: 24.07.2011
 {
 	for (size_t i = 0; i<total_points; i++) {
 		if (tmp_X[i].y<0) //collision with ground
 			tmp_X[i].y = 0;
 	}
 }
-void OpenClothPBDNode::EllipsoidCollision() {
+void SimNode::EllipsoidCollision() {
 
-	int numCollisionGridY ; //y-range of cloth grid for collision detection 
-	int numCollisionGridX ; //x-range of cloth grid for collision dtetction
+	int numCollisionGridY; //y-range of cloth grid for collision detection 
+	int numCollisionGridX; //x-range of cloth grid for collision dtetction
 
-	
+
 	int clothIndex;  //1-dimension index
 	int clothIndexX; //2d index
 	int clothIndexY; //2d index
-	
-	for (int e = 0; e < numActuatorX*numActuatorY;e++){			//for all ellipsoid e
+
+	for (int e = 0; e < numActuatorX*numActuatorY; e++){			//for all ellipsoid e
 		clothIndexX = actuatorIndex[e] % (numX + 1);			//calculate the x,y 
-		clothIndexY = (int)(actuatorIndex[e] / (numX+1));
+		clothIndexY = (int)(actuatorIndex[e] / (numX + 1));
 
 		numCollisionGridY = (int)(radiusArr[e] / init_Y);
 		numCollisionGridX = (int)(radiusArr[e] / init_X);
 
-		for (int y = std::max(0, clothIndexY - numCollisionGridY); y < std::min(clothIndexY + numCollisionGridY, numY); y++){
-			for (int x = std::max(0, clothIndexX - numCollisionGridX); x < std::min(clothIndexX + numCollisionGridX, numX); x++){
-				clothIndex = getIndex(x, y);
+		if (std::max(0, clothIndexX - numCollisionGridX) != 0 && std::max(0, clothIndexY - numCollisionGridY) != 0)
+		{
+			for (int y = std::max(0, clothIndexY - numCollisionGridY); y < std::min(clothIndexY + numCollisionGridY, numY); y++) {
+				for (int x = std::max(0, clothIndexX - numCollisionGridX); x < std::min(clothIndexX + numCollisionGridX, numX); x++) {
+					clothIndex = getIndex(x, y);
 
-				glm::vec4 X_0 = (inverse_ellipsoid[e] * glm::vec4(tmp_X[clothIndex], 1));
-				glm::vec3 delta0 = glm::vec3(X_0.x, X_0.y, X_0.z) - center;
-				float distance = glm::length(delta0);
-				if (distance <  radiusArr[e]) {
-					delta0 = (radiusArr[e] - distance) * delta0 / distance;
+					glm::vec4 X_0 = (inverse_ellipsoid[e] * glm::vec4(tmp_X[clothIndex], 1));
+					glm::vec3 delta0 = glm::vec3(X_0.x, X_0.y, X_0.z) - center;
+					float distance = glm::length(delta0);
+					if (distance <  radiusArr[e]) {
+						delta0 = (radiusArr[e] - distance) * delta0 / distance;
 
-					// Transform the delta back to original space
-					glm::vec3 delta;
-					glm::vec3 transformInv;
-					transformInv = glm::vec3(ellipsoid[e][0].x, ellipsoid[e][1].x, ellipsoid[e][2].x);
-					transformInv /= glm::dot(transformInv, transformInv);
-					delta.x = glm::dot(delta0, transformInv);
-					transformInv = glm::vec3(ellipsoid[e][0].y, ellipsoid[e][1].y, ellipsoid[e][2].y);
-					transformInv /= glm::dot(transformInv, transformInv);
-					delta.y = glm::dot(delta0, transformInv);
-					transformInv = glm::vec3(ellipsoid[e][0].z, ellipsoid[e][1].z, ellipsoid[e][2].z);
-					transformInv /= glm::dot(transformInv, transformInv);
-					delta.z = glm::dot(delta0, transformInv);
-					tmp_X[clothIndex] += delta;
-					V[clothIndex] = glm::vec3(0);
+						// Transform the delta back to original space
+						glm::vec3 delta;
+						glm::vec3 transformInv;
+						transformInv = glm::vec3(ellipsoid[e][0].x, ellipsoid[e][1].x, ellipsoid[e][2].x);
+						transformInv /= glm::dot(transformInv, transformInv);
+						delta.x = glm::dot(delta0, transformInv);
+						transformInv = glm::vec3(ellipsoid[e][0].y, ellipsoid[e][1].y, ellipsoid[e][2].y);
+						transformInv /= glm::dot(transformInv, transformInv);
+						delta.y = glm::dot(delta0, transformInv);
+						transformInv = glm::vec3(ellipsoid[e][0].z, ellipsoid[e][1].z, ellipsoid[e][2].z);
+						transformInv /= glm::dot(transformInv, transformInv);
+						delta.z = glm::dot(delta0, transformInv);
+						tmp_X[clothIndex] += delta;
+						V[clothIndex] = glm::vec3(0);
+					}
 				}
 			}
 		}
-		
+
 	}
-	
+
 }
 
-void OpenClothPBDNode::EllipsoidMove(){ //move along with the position constraints
+void SimNode::EllipsoidMove(){ //move along with the position constraints
 	/* 20170921 */
-	
-	
+
+
 	//printf("ellipsoid[0]: %f\n", ellipsoid[3].x);
 	for (int i = 0; i < numActuatorX*numActuatorY; i++) {
-		
+
 		//if (ellipsoid[i][3].x >= heightArray[i] - radiusArr[i]) {//limit
 		//	ellipsoid[i] = glm::translate(glm::mat4(1), glm::vec3(heightArray[i] - radiusArr[i], ellipsoid[i][3].y, ellipsoid[i][3].z));//2017.05.29 glm::vec3(0,2,0))
 		//	//ellipsoid[i] = glm::scale(ellipsoid[i], glm::vec3(radius, radius, radius));//20171103
@@ -1134,68 +1132,110 @@ void OpenClothPBDNode::EllipsoidMove(){ //move along with the position constrain
 		//}
 		//else {
 
-			ellipsoid[i] = glm::translate(glm::mat4(1), glm::vec3(tmp_X[actuatorIndex[i]].x - radiusArr[i], ellipsoid[i][3].y, ellipsoid[i][3].z));//2017.05.29 glm::vec3(0,2,0))//20170921(-1+0.01*i)에서 ellipsoid[3].x + 0.01로 수정. i static이라 초기화 문제 때문. 
-			//ellipsoid[i] = glm::scale(ellipsoid[i], glm::vec3(radius, radius, radius));//20171103
+		ellipsoid[i] = glm::translate(glm::mat4(1), glm::vec3(tmp_X[actuatorIndex[i]].x - radiusArr[i], ellipsoid[i][3].y, ellipsoid[i][3].z));//2017.05.29 glm::vec3(0,2,0))//20170921(-1+0.01*i)에서 ellipsoid[3].x + 0.01로 수정. i static이라 초기화 문제 때문. 
+		//ellipsoid[i] = glm::scale(ellipsoid[i], glm::vec3(radius, radius, radius));//20171103
 
-			inverse_ellipsoid[i] = glm::inverse(ellipsoid[i]);
+		inverse_ellipsoid[i] = glm::inverse(ellipsoid[i]);
 		//}
 	}
 
 
 }
-void OpenClothPBDNode::UpdatePositionConstraint() {
+void SimNode::UpdatePositionConstraint() {
 
-	double speedRatio=1/50;
+	double speedRatio = 1 / 50;
 	int count = 0;
 
 	for (int i = 0; i < numActuatorX*numActuatorY; i++) {
 		int currentHeightIndex = getHeightIndex(currentFrameNumber, i);
-		int prevHeightIndex = getHeightIndex(prevFrameNumber,i);
+		int prevHeightIndex = getHeightIndex(prevFrameNumber, i);
 
-		if ((tmp_X[actuatorIndex[i]].x >= actuatorHeightData[currentHeightIndex] - 0.01f) &&
-			(tmp_X[actuatorIndex[i]].x <= actuatorHeightData[currentHeightIndex] + 0.01f)) //if actuator is in the boundary, set the position of actuator 
+		if (actuatorHeightData[currentHeightIndex] == 0)
+
 		{
-			tmp_X[actuatorIndex[i]].x = actuatorHeightData[currentHeightIndex];
-			W[actuatorIndex[i]] = 0.0;
-			count++;
-			if( (count>= 419)){ //when all actuator is in the boundary, set nextFrame?
-				prevFrameNumber = currentFrameNumber;
-				currentFrameNumber = (currentFrameNumber + 1) % numFrame;
-				count = 0;
-			}
-		}
-		else{
-			double movement;
-			if (currentFrameNumber == 0 && prevFrameNumber == 0)
+			if ((tmp_X[actuatorIndex[i]].x >= actuatorHeightData[currentHeightIndex] - 0.01f) &&
+				(tmp_X[actuatorIndex[i]].x <= actuatorHeightData[currentHeightIndex] + 0.01f)) //if actuator is in the boundary, set the position of actuator 
 			{
-				movement = actuatorHeightData[currentHeightIndex];
-			}else{
-				movement = actuatorHeightData[currentHeightIndex] - actuatorHeightData[prevHeightIndex];
+				tmp_X[actuatorIndex[i]].x = actuatorHeightData[currentHeightIndex];
+				W[actuatorIndex[i]] = 0.0;
+				count++;
+				if ((count >= 419)) { //when all actuator is in the boundary, set nextFrame?
+					prevFrameNumber = currentFrameNumber;
+					currentFrameNumber = (currentFrameNumber + 1) % numFrame;
+					count = 0;
+				}
 			}
-			
-			tmp_X[actuatorIndex[i]].x += movement/50;
-			W[actuatorIndex[i]] = 0.0;
-
+			else
+			{
+				double movement;
+				if (currentFrameNumber == 0 && prevFrameNumber == 0)
+				{
+					movement = actuatorHeightData[currentHeightIndex];
+					tmp_X[actuatorIndex[i]].x += movement / 100;
+				}
+				else
+				{
+					movement = actuatorHeightData[currentHeightIndex] - actuatorHeightData[prevHeightIndex];
+					tmp_X[actuatorIndex[i]].x += movement / 100;
+				}
+				W[actuatorIndex[i]] = 0.0;
+			}
 		}
-
+		else
+		{
+			if (actuatorIndex[i] % (numX + 1) != 0
+				&& actuatorIndex[i] % (numX + 1) != numX)
+			{
+				if ((tmp_X[actuatorIndex[i]].x >= actuatorHeightData[currentHeightIndex] - 0.01f) &&
+					(tmp_X[actuatorIndex[i]].x <= actuatorHeightData[currentHeightIndex] + 0.01f)) //if actuator is in the boundary, set the position of actuator 
+				{
+					tmp_X[actuatorIndex[i]].x = actuatorHeightData[currentHeightIndex];
+					W[actuatorIndex[i]] = 0.0;
+					count++;
+					if ((count >= 419)) { //when all actuator is in the boundary, set nextFrame?
+						prevFrameNumber = currentFrameNumber;
+						currentFrameNumber = (currentFrameNumber + 1) % numFrame;
+						count = 0;
+					}
+				}
+				else
+				{
+					double movement;
+					if (currentFrameNumber == 0 && prevFrameNumber == 0)
+					{
+						movement = actuatorHeightData[currentHeightIndex];
+						tmp_X[actuatorIndex[i]].x += movement / 100;
+					}
+					else
+					{
+						movement = actuatorHeightData[currentHeightIndex] - actuatorHeightData[prevHeightIndex];
+						tmp_X[actuatorIndex[i]].x += movement / 100;
+					}
+					W[actuatorIndex[i]] = 0.0;
+				}
+			}
+			else
+			{
+				count++;
+			}
+		}
 	}
-	
 	/*for (int i = 0; i < numActuatorX*numActuatorY; i++) {
 
-		if (tmp_X[actuatorIndex[i]].x >= heightArray[i]) {
-			tmp_X[actuatorIndex[i]].x = heightArray[i];
-			W[actuatorIndex[i]] = 0.0;
-		}
-		else {
-			tmp_X[actuatorIndex[i]].x += (heightArray[i]) / 200;
-			W[actuatorIndex[i]] = 0.0;
-		}
+	if (tmp_X[actuatorIndex[i]].x >= heightArray[i]) {
+	tmp_X[actuatorIndex[i]].x = heightArray[i];
+	W[actuatorIndex[i]] = 0.0;
+	}
+	else {
+	tmp_X[actuatorIndex[i]].x += (heightArray[i]) / 200;
+	W[actuatorIndex[i]] = 0.0;
+	}
 
 	}*/
 }
 
-void OpenClothPBDNode::UpdateExternalConstraints() {
-	
+void SimNode::UpdateExternalConstraints() {
+
 	//CalEllipsoidRadius();
 
 	EllipsoidMove();
@@ -1204,7 +1244,7 @@ void OpenClothPBDNode::UpdateExternalConstraints() {
 
 }
 //----------------------------------------------------------------------------------------------------
-void OpenClothPBDNode::UpdateInternalConstraints(float deltaTime) {
+void SimNode::UpdateInternalConstraints(float deltaTime) {
 	size_t i = 0;
 
 	//printf(" UpdateInternalConstraints \n ");
@@ -1218,14 +1258,29 @@ void OpenClothPBDNode::UpdateInternalConstraints(float deltaTime) {
 		UpdatePositionConstraint();
 		//GroundCollision();
 	}
+
+	/*
+	//print k values
+	std::ofstream out("C:\\Users\\jungm_000\\Desktop\\k.txt", ios::app);
+
+	int pos = 0, neg = 0;
+	if (out.is_open()) {
+	for (int j = 0; j < d_constraints.size(); j++)
+	{
+	if (d_constraints[j].positive_movement)
+	pos = j;
+	else
+	neg = j;
+	}
+	out << d_constraints[pos].k << " " << d_constraints[neg].k << " " << d_constraints.size() << " ";
+	}
+	*/
 }
 
 //171011
 //171012
-void OpenClothPBDNode::CalActuatorStrain()
+void SimNode::CalActuatorStrain()
 {
-	//MGlobal::displayInfo("calStr");
-
 	int point = 0;
 
 	//actuator strain
@@ -1264,10 +1319,20 @@ void OpenClothPBDNode::CalActuatorStrain()
 			}
 		}
 	}
-	//MGlobal::displayInfo(MString()+Strain[188]);
+
+	avg_Strain = 0;
+	for (int i = 0; i < numActuatorX; i++)
+	{
+		for (int j = 0; j < numActuatorY; j++)
+		{
+			point = i + numActuatorX * j;
+			avg_Strain += Strain[actuatorIndex[point]];
+		}
+	}
+	avg_Strain /= numActuatorX*numActuatorY;
 }
 
-void OpenClothPBDNode::CalNodalStrain()
+void SimNode::CalNodalStrain()
 {
 	int point = 0;
 
@@ -1292,13 +1357,19 @@ void OpenClothPBDNode::CalNodalStrain()
 					Strain[point] = (Strain[point] - init_X) / (init_X);
 				else
 					Strain[point] = (init_X - Strain[point]) / (init_X);
-			}			
+			}
 		}
 	}
+
+	avg_Strain = Strain[0];
+	for (int i = 1; i<total_points; i++)
+		avg_Strain += Strain[i];
+	avg_Strain /= total_points;
+
 }
 
 
-void OpenClothPBDNode::CalEllipsoidRadius(){
+void SimNode::CalEllipsoidRadius(){
 
 	int c;
 	int p[6]; //p0 is the centerindex of each points around 
@@ -1313,7 +1384,7 @@ void OpenClothPBDNode::CalEllipsoidRadius(){
 
 
 	for (int ay = 1; ay < numActuatorY - 1; ay++){ //for all actuators inside of the boundary
-		for (int ax = 1; ax < numActuatorX-1; ax++){
+		for (int ax = 1; ax < numActuatorX - 1; ax++){
 
 			c = (ax)+(ay)*numActuatorX;
 
@@ -1338,19 +1409,19 @@ void OpenClothPBDNode::CalEllipsoidRadius(){
 			/*curvature
 			for (int i = 0; i < 6; i++)
 			{
-				disCP[i] = distance(tmp_X[actuatorIndex[c]], tmp_X[actuatorIndex[p[i]]]);
-				disPP[i] = distance(tmp_X[actuatorIndex[p[i]]], tmp_X[actuatorIndex[p[(i + 1)%6]]]); //%6 하는건 disPP[5]는 p[5] p[0]이랑 해야되니까.
-				
+			disCP[i] = distance(tmp_X[actuatorIndex[c]], tmp_X[actuatorIndex[p[i]]]);
+			disPP[i] = distance(tmp_X[actuatorIndex[p[i]]], tmp_X[actuatorIndex[p[(i + 1)%6]]]); //%6 하는건 disPP[5]는 p[5] p[0]이랑 해야되니까.
+
 			}
 			for (int i = 0; i < 6; i++){
-				angPP[i] = acos((disCP[i] * disCP[i] + disCP[(i + 1) % 6] * disCP[(i + 1) % 6] - disPP[i] * disPP[i])/(2*disCP[i]*disCP[(i+1)%6]));
-				s[i] = (disCP[i] + disCP[(i + 1) % 6] + disPP[i]) / 2;
-				a[i] = sqrt(s[i] * (s[i] - disCP[i])*(s[i] - disCP[(i + 1) % 6])*(s[i] - disPP[i]));
-				
+			angPP[i] = acos((disCP[i] * disCP[i] + disCP[(i + 1) % 6] * disCP[(i + 1) % 6] - disPP[i] * disPP[i])/(2*disCP[i]*disCP[(i+1)%6]));
+			s[i] = (disCP[i] + disCP[(i + 1) % 6] + disPP[i]) / 2;
+			a[i] = sqrt(s[i] * (s[i] - disCP[i])*(s[i] - disCP[(i + 1) % 6])*(s[i] - disPP[i]));
+
 			}
 			for (int i = 0; i < 6; i++){
-				sumAng += angPP[i];
-				A += a[i];
+			sumAng += angPP[i];
+			A += a[i];
 			}
 
 			deltaAng = 2 * PI - sumAng;
@@ -1358,11 +1429,10 @@ void OpenClothPBDNode::CalEllipsoidRadius(){
 
 			radiusArr[c] = 1 / (curvature[c] + 1e-16);
 			*/
-			radiusArr[c] = std::min(1.0f/ heightDistance[c],1.5f);
-			
+			radiusArr[c] = std::min(1.0f / heightDistance[c], 1.5f);
+
 			MString str = "c= ";
 			str = str + c + " curvature[c]= " + curvature[c] + "\n";
-			//MGlobal::displayInfo(MString("######OpenClothPBDNode Calculate curvature"+str));
 		}
 	}
 
@@ -1370,29 +1440,28 @@ void OpenClothPBDNode::CalEllipsoidRadius(){
 
 }
 
-
 void getHeightDataFromFile(std::string fileName){
 	std::ifstream file(fileName);
 	std::string line;
-	int i=0;
-	MString test; 
+	int i = 0;
+	MString test;
 	//read file and get the height data
 	if (file.is_open()){
-		MGlobal::displayInfo("FILE IS OPEN");
+		//MGlobal::displayInfo("FILE IS OPEN");
 		getline(file, line);
 		numFrame = atoi(line.c_str());//get the number of Frame
-		actuatorHeightData.resize(420 *( numFrame));
+		actuatorHeightData.resize(420 * (numFrame));
 
 		while (getline(file, line)){
 			std::stringstream linestream(line);
 			std::string item;
-			test = MString() +i+" ";
+			test = MString() + i + " ";
 			while (getline(linestream, item, ' ')){
 				actuatorHeightData[i] = atof(item.c_str());
-				test += MString() + actuatorHeightData[i] + " " ;
+				test += MString() + actuatorHeightData[i] + " ";
 				i++;
 			}
-			MGlobal::displayInfo(test);
+			//MGlobal::displayInfo(test);
 		}
 
 	}
@@ -1401,15 +1470,25 @@ void getHeightDataFromFile(std::string fileName){
 		//ERROR: File Not Found
 	}
 
-	MGlobal::displayInfo("FILE READ DONE==================");
-	test = "";
-	for (int j = 0; j < 420; j++){
-		
-		//for (int i = 0; i < 420; i++){
-			test += (MString() + actuatorHeightData[j] + " ");
-		//}
-	}
-	MGlobal::displayInfo(test);
+	//numFrame = 5;
+	//actuatorHeightData.resize(420 * (numFrame));
+	//for (int f = 0; f < numFrame; f++)
+	//{
+	//	for (int a = 0; a < numActuatorX*numActuatorY; a++)
+	//	{
+	//		//actuatorHeightData[f]
+	//	}
+	//}
+
+	//MGlobal::displayInfo("FILE READ DONE==================");
+	//test = "";
+	//for (int j = 0; j < 420; j++){
+	//	
+	//	//for (int i = 0; i < 420; i++){
+	//		test += (MString() + actuatorHeightData[j] + " ");
+	//	//}
+	//}
+	//MGlobal::displayInfo(test);
 }
 
 int getHeightIndex(int frame, int actuator){

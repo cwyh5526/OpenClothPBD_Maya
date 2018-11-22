@@ -7,7 +7,7 @@
 #include <maya/MPxCommand.h>
 #include <maya/MDGModifier.h>
 
-class OpenClothPBDCmd : public MPxCommand
+class SimCmd : public MPxCommand
 {
 public:
 	virtual MStatus	doIt(const MArgList&);
@@ -15,7 +15,7 @@ public:
 	virtual MStatus redoIt();
 	virtual bool isUndoable() const { return true; }
 
-	static void *creator() { return new OpenClothPBDCmd; }
+	static void *creator() { return new SimCmd; }
 	static MSyntax newSyntax();
 
 private:

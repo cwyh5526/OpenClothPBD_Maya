@@ -316,11 +316,11 @@ return true;
 }
 
 */
-class OpenClothPBDNode : public MPxNode
+class SimNode : public MPxNode
 {
 public:
-	OpenClothPBDNode() {};
-	virtual 		~OpenClothPBDNode() {};
+	SimNode() {};
+	virtual 		~SimNode() {};
 	virtual MStatus compute(const MPlug& plug, MDataBlock& data); //brain of a node
 	static  void*	creator();		//allows Maya to instantialte instances of this node
 	static  MStatus initialize();	//define the I/O of node. called once immediately after a plug-in is loaded
@@ -344,6 +344,10 @@ public:
 	static MObject actuatorPosition;//20171205
 	static MObject heightFilePath;//20180122
 
+	//material model property
+	float avg_Strain;
+	float k;
+	std::vector<bool> positive_move;
 
 	/*node type*/
 	static MTypeId	id; //unique identifier used by create() to identify which node to create

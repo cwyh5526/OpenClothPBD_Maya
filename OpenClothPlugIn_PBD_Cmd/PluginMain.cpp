@@ -6,17 +6,17 @@
 MStatus initializePlugin(MObject obj)
 {
 	MStatus   status;
-	MFnPlugin plugin(obj, "OpenCloth plug-in", "1.0", "Any");
+	MFnPlugin plugin(obj, "Sim plug-in", "1.0", "Any");
 
-	status = plugin.registerCommand("OpenClothPBD", OpenClothPBDCmd::creator);
+	status = plugin.registerCommand("Sim", SimCmd::creator);
 	if (!status) {
 		status.perror("registerCommand failed");
 		return status;
 	}
 
 
-	status = plugin.registerNode("OpenClothPBDNode", OpenClothPBDNode::id,
-		OpenClothPBDNode::creator, OpenClothPBDNode::initialize);
+	status = plugin.registerNode("SimNode", SimNode::id,
+		SimNode::creator, SimNode::initialize);
 	if (!status) {
 		status.perror("registerNode failed");
 		return status;
@@ -29,13 +29,13 @@ MStatus uninitializePlugin(MObject obj)
 {
 	MStatus	  status;
 	MFnPlugin plugin(obj);
-	status = plugin.deregisterCommand("OpenClothPBD");
+	status = plugin.deregisterCommand("Sim");
 	if (!status)
 	{
 		status.perror("deregisterCommand failed");
 		return status;
 	}
-	status = plugin.deregisterNode(OpenClothPBDNode::id);
+	status = plugin.deregisterNode(SimNode::id);
 	if (!status) {
 		status.perror("deregisterNode");
 		return status;
