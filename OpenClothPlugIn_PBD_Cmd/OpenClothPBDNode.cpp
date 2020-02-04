@@ -19,7 +19,7 @@ static int prevNumX = 0, prevNumY = 0;
 int prevcolorDim = 0;//color
 float prevRadius = 1.0f;
 
-static int cd;//color
+static int cd=1;//color
 static int numX = 0, numY = 0;
 size_t total_points = (numX + 1)*(numY + 1);
 float size = 20.0;//int size=20; //20170719
@@ -79,9 +79,9 @@ glm::vec3 Up = glm::vec3(0, 1, 0), Right, viewDir;
 float startTime = 0;// fps = 0;
 int totalFrames = 0;
 
-int numEllip = 420;// 400;
-glm::mat4 ellipsoid[420];// 1];
-glm::mat4 inverse_ellipsoid[420];// 1]; //20170925
+int numEllip = 406;//504;//504=28*18// 400;
+glm::mat4 ellipsoid[406];// 1];
+glm::mat4 inverse_ellipsoid[406];// 1]; //20170925
 
 int iStacks = 30;
 int iSlices = 30;
@@ -89,14 +89,14 @@ float fRadius = 0.5f;
 // Resolve constraint in object space
 glm::vec3 center = glm::vec3(0, 0, 0); //object space center of ellipsoid
 float radius = 1.0f;
-float radiusArr[420] = { 1.0f, };
-float curvature[420] = { 2.0f, };
-float heightDistance[420] = { 0.f, };
+float radiusArr[406] = { 1.0f, };
+float curvature[406] = { 2.0f, };
+float heightDistance[406] = { 0.f, };
 
-int actuatorIndex[420];//index of actuator
-const int numActuatorX = 28;
-const int numActuatorY = 15;
-double heightArray[420] = //  1    2    3    4     5     6     7     8     9      10   11   12     13   14    15    16     17    18    19   20
+int actuatorIndex[406];//index of actuator
+const int numActuatorX = 29;
+const int numActuatorY = 14;// 15;
+double heightArray[504] = //  1    2    3    4     5     6     7     8     9      10   11   12     13   14    15    16     17    18    19   20
 {
 	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.6, 1.6, 1.6, 1.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  //1
 
@@ -126,7 +126,14 @@ double heightArray[420] = //  1    2    3    4     5     6     7     8     9    
 
 	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.6, 2.8, 3.0, 3.2, 3.4, 3.2, 3.0, 2.8, 1.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,     //14
 
-	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0  //15
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  //15
+
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,    //16
+
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  //17
+
+	0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0    //18
+
 };
 
 /*For Animation 20180102*/
@@ -135,7 +142,9 @@ int numFrame; //how many frames for animations
 int prevFrameNumber = 0;
 int currentFrameNumber = 0;
 
-std::string defaultFilePath = "C:\\Users\\cwyh5\\Desktop\\KITECH_1003\\Maya_Animation\\Maya_Animation\\OpenClothPlugIn_PBD_Cmd\\height_data.txt";
+std::string defaultFilePath = "C:\\Users\\cwyh5\\Documents\\2KITECH\\animation\\02_Triangel.txt";
+
+//"C:\\Users\\cwyh5\\Desktop\\KITECH_1003\\Maya_Animation\\Maya_Animation\\OpenClothPlugIn_PBD_Cmd\\height_data.txt";
 std::string heightInputFilePath = "";
 std::string prevFilePath = "";
 
@@ -215,8 +224,8 @@ MStatus SimNode::initialize()
 	height = nAttr.create("height", "h", MFnNumericData::kDouble, 0.0);
 	subWidth = nAttr.create("subWidth", "sw", MFnNumericData::kInt, 0);
 	subHeight = nAttr.create("subHeight", "sh", MFnNumericData::kInt, 0);
-	colorDim = nAttr.create("colorDimension", "cd", MFnNumericData::kInt, 2);//color
-	ellipRadius = nAttr.create("ellipsoidRadius", "r", MFnNumericData::kFloat, 1.0);
+	colorDim = nAttr.create("colorDimension", "cd", MFnNumericData::kInt, 1);//color
+	ellipRadius = nAttr.create("ellipsoidRadius", "r", MFnNumericData::kFloat, 0.65);
 
 
 
@@ -467,9 +476,9 @@ MObject SimNode::createCloth(const MTime& time, MObject& inData, MObject& outDat
 		{
 			for (int i = 0; i<total_points; i++)
 			{
-				double s = tmp_X[i].x*0.5; // (1 - std::min(std::max(Strain[i], 0.f), 1.f)) * 241;
+				double s = (1 - std::min(std::max(Strain[i], 0.f), 1.f)) * 241; //tmp_X[i].x*0.5;
 				//MGlobal::displayInfo(MString("strain = ") + Strain[i]);
-				MColor c(MColor::kHSV, 0, 0, s, 1.0);
+				MColor c(MColor::kHSV, s, 1.0, 1.0, 1.0);
 				colors.append(c);
 				vertexId.append(i);
 
@@ -779,8 +788,8 @@ void SimNode::InitializeOpenCloth()
 	currentFrameNumber = 0;
 	//MGlobal::displayInfo("FILE READ INITIALIZED");
 	/*for (int j = 0; j < numFrame; j++){
-	for (int i = 0; i < 420; i++){
-	MGlobal::displayInfo(MString() + actuatorHeightData[j*420+i] + " ");
+	for (int i = 0; i < 504; i++){
+	MGlobal::displayInfo(MString() + actuatorHeightData[j*504+i] + " ");
 	}
 	}*/
 
@@ -794,6 +803,14 @@ void SimNode::StepPhysics(float dt){
 	UpdateExternalConstraints();
 
 	Integrate(dt);
+	if (cd == 1)
+	{
+		CalActuatorStrain();
+	}
+	else if (cd == 2)
+	{
+		CalNodalStrain();
+	}
 }
 
 void SimNode::ComputeForces() {
@@ -1159,7 +1176,7 @@ void SimNode::UpdatePositionConstraint() {
 				tmp_X[actuatorIndex[i]].x = actuatorHeightData[currentHeightIndex];
 				W[actuatorIndex[i]] = 0.0;
 				count++;
-				if ((count >= 419)) { //when all actuator is in the boundary, set nextFrame?
+				if ((count >= (numActuatorX*numActuatorY - 1))) { //when all actuator is in the boundary, set nextFrame?
 					prevFrameNumber = currentFrameNumber;
 					currentFrameNumber = (currentFrameNumber + 1) % numFrame;
 					count = 0;
@@ -1171,12 +1188,12 @@ void SimNode::UpdatePositionConstraint() {
 				if (currentFrameNumber == 0 && prevFrameNumber == 0)
 				{
 					movement = actuatorHeightData[currentHeightIndex];
-					tmp_X[actuatorIndex[i]].x += movement / 100;
+					tmp_X[actuatorIndex[i]].x += movement / 80;
 				}
 				else
 				{
 					movement = actuatorHeightData[currentHeightIndex] - actuatorHeightData[prevHeightIndex];
-					tmp_X[actuatorIndex[i]].x += movement / 100;
+					tmp_X[actuatorIndex[i]].x += movement / 80;
 				}
 				W[actuatorIndex[i]] = 0.0;
 			}
@@ -1192,7 +1209,7 @@ void SimNode::UpdatePositionConstraint() {
 					tmp_X[actuatorIndex[i]].x = actuatorHeightData[currentHeightIndex];
 					W[actuatorIndex[i]] = 0.0;
 					count++;
-					if ((count >= 419)) { //when all actuator is in the boundary, set nextFrame?
+					if ((count >= (numActuatorX*numActuatorY - 1))) { //when all actuator is in the boundary, set nextFrame?
 						prevFrameNumber = currentFrameNumber;
 						currentFrameNumber = (currentFrameNumber + 1) % numFrame;
 						count = 0;
@@ -1204,12 +1221,12 @@ void SimNode::UpdatePositionConstraint() {
 					if (currentFrameNumber == 0 && prevFrameNumber == 0)
 					{
 						movement = actuatorHeightData[currentHeightIndex];
-						tmp_X[actuatorIndex[i]].x += movement / 100;
+						tmp_X[actuatorIndex[i]].x += movement / 80;
 					}
 					else
 					{
 						movement = actuatorHeightData[currentHeightIndex] - actuatorHeightData[prevHeightIndex];
-						tmp_X[actuatorIndex[i]].x += movement / 100;
+						tmp_X[actuatorIndex[i]].x += movement / 80;
 					}
 					W[actuatorIndex[i]] = 0.0;
 				}
@@ -1449,15 +1466,18 @@ void getHeightDataFromFile(std::string fileName){
 	if (file.is_open()){
 		//MGlobal::displayInfo("FILE IS OPEN");
 		getline(file, line);
-		numFrame = atoi(line.c_str());//get the number of Frame
-		actuatorHeightData.resize(420 * (numFrame));
+		numFrame = atoi(line.c_str())/5;//get the number of Frame
+		actuatorHeightData.resize(numEllip * (numFrame));
 
 		while (getline(file, line)){
+			for (int k = 0; k < 4; k++){
+				getline(file, line);
+			}
 			std::stringstream linestream(line);
 			std::string item;
 			test = MString() + i + " ";
 			while (getline(linestream, item, ' ')){
-				actuatorHeightData[i] = atof(item.c_str());
+				actuatorHeightData[i] = atof(item.c_str()) / 100.0f;
 				test += MString() + actuatorHeightData[i] + " ";
 				i++;
 			}
@@ -1492,5 +1512,5 @@ void getHeightDataFromFile(std::string fileName){
 }
 
 int getHeightIndex(int frame, int actuator){
-	return frame * 420 + actuator;
+	return frame * numEllip + actuator;
 }
